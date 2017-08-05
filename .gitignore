@@ -8,3 +8,5 @@ cscope.out
 aos.sublime-project
 aos.sublime-workspace
 compile_commands.json
+.config
+.config.old
