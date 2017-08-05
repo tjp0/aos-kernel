@@ -149,4 +149,7 @@ int sos_share_vm(void *adr, size_t size, int writable);
  * Returns 0 if successful, -1 otherwise (invalid address or size).
  */
 
+
+size_t sos_debug_print(const void *vData, size_t count);
+
 #endif

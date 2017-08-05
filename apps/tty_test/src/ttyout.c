@@ -26,6 +26,7 @@
 
 #include "ttyout.h"
 
+#include <ipc.h>
 #include <sel4/sel4.h>
 
 void ttyout_init(void) {
@@ -42,7 +43,20 @@ static size_t sos_debug_print(const void *vData, size_t count) {
 
 size_t sos_write(void *vData, size_t count) {
     //implement this to use your syscall
-    return sos_debug_print(vData, count);
+
+    struct ipc_command ipc = ipc_create();
+
+    ipc_packi(&ipc,1);
+    size_t length = ipc_maxs(&ipc);
+    if(length > count) {
+        length = count;
+    }
+
+    ipc_packs(&ipc,length,vData);
+    ipc_call(&ipc,SYSCALL_ENDPOINT_SLOT);
+
+    return length;
+    //return sos_debug_print(vData, count);
 }
 
 size_t sos_read(void *vData, size_t count) {

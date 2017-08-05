@@ -39,4 +39,10 @@ int64_t sos_sys_time_stamp(void) {
     assert(!"You need to implement this");
     return -1;
 }
-
+size_t sos_debug_print(const void *vData, size_t count) {
+    size_t i;
+    const char *realdata = vData;
+    for (i = 0; i < count; i++)
+        seL4_DebugPutChar(realdata[i]);
+    return count;
+}

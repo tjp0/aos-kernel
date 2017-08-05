@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <ipc.h>
 
 #include <cspace/cspace.h>
 
@@ -75,7 +76,11 @@ struct {
 /*
  * A dummy starting syscall
  */
+
+struct serial * global_serial;
+
 #define SOS_SYSCALL0 0
+#define SOS_SERIALWRITE 1
 
 seL4_CPtr _sos_ipc_ep_cap;
 seL4_CPtr _sos_interrupt_ep_cap;
@@ -91,7 +96,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
     seL4_CPtr reply_cap;
 
 
-    syscall_number = seL4_GetMR(0);
+    struct ipc_command ipc = ipc_create();
+    ipc_unpacki(&ipc,&syscall_number);
+
 
     /* Save the caller */
     reply_cap = cspace_save_reply_cap(cur_cspace);
@@ -105,6 +112,16 @@ void handle_syscall(seL4_Word badge, int num_args) {
         seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_SetMR(0, 0);
         seL4_Send(reply_cap, reply);
+
+        break;
+    case SOS_SERIALWRITE:
+    ;   size_t length;
+        void* array;
+        if(!ipc_unpackb(&ipc,&length,&array))
+        {
+            break;
+        }
+        serial_send(global_serial,array,length);
 
         break;
 
@@ -415,6 +432,8 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
+
+    global_serial = serial_init();
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
