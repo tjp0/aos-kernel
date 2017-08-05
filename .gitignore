@@ -5,4 +5,6 @@ cscope.out
 /images/
 /null.s
 /null.i
-
+aos.sublime-project
+aos.sublime-workspace
+compile_commands.json
