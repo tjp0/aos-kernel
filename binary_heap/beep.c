@@ -70,7 +70,7 @@ node_data pop(beep_struct *beep){
 		if (DEBUG){
 			printf("BEEP IS EMPTY\n");
 		}
-		return -1;
+		return NULL;
 	}
 	node_data data = beep->node_array[0].data;
 	percolate_down(beep);
@@ -82,7 +82,7 @@ node_data peek(beep_struct *beep){
 		if (DEBUG){
 			printf("BEEP IS EMPTY\n");
 		}
-		return -1;
+		return NULL;
 	}
 	return beep->node_array[0].data;
 }
@@ -95,7 +95,7 @@ int push(beep_struct *beep, priority_type priority, node_data data){
 		if (DEBUG){
 			printf("CAN'T FIT ANY MORE NODES\n");
 		}
-		return -1;
+		return NULL;
 	}
 	// We now have another node so increment our count
 	beep->nodes_in_use += 1;

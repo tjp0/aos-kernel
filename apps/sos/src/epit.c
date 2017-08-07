@@ -4,6 +4,7 @@
 #include "dma.h"
 #include "mapping.h"
 #include "ut_manager/ut.h"
+#include "timer.h"
 
 #define verbose 5
 #include <sys/debug.h>
@@ -26,8 +27,6 @@
 #define MICROSECONDS_PER_SECOND 1000*1000
 static seL4_CPtr epit1_irq_cap;
 static seL4_CPtr epit2_irq_cap;
-
-static void epit2_sleepto(timestamp_t time);
 
 struct EPIT_r {
 	uint32_t EPIT_CR;
@@ -64,15 +63,13 @@ int start_timer(seL4_CPtr epit1_ep, seL4_CPtr epit2_ep) {
 	epit2_r = map_device(EPIT2_BASE, sizeof(struct EPIT_r));
 	conditional_panic(epit1_r == NULL || epit2_r == NULL, "Failed to map EPIT registers");
 
-
 	/* Start EPIT1 timer (microsecond timestamps) */
 	epit1_r->EPIT_CR = (EPIT_CR_CLKSRC_PERIPHERAL | EPIT_CR_COMPAREENABLE | EPIT_CR_ENMOD1);
 	epit1_r->EPIT_CMPR = UINT32_MAX/2;
 	epit1_r->EPIT_LR = UINT32_MAX;
 	epit1_r->EPIT_SR |= 1;
 	epit1_r->EPIT_CR |= EPIT_CR_ENABLE;
-
-	epit2_sleepto(time_stamp()+MICROSECONDS_PER_SECOND*4);
+	timer_init();
 
 	return 0;
 }
@@ -110,7 +107,7 @@ int timer_interrupt_epit1(void) {
 	return 0;
 }
 
-static void epit2_sleepto(timestamp_t timestamp) {
+void epit2_sleepto(timestamp_t timestamp) {
 	int64_t curtime = time_stamp();
 	int64_t diff = timestamp - curtime;
 	if(diff > UINT32_MAX*4096*TICKS_PER_MICROSECOND) {
@@ -149,29 +146,9 @@ int timer_interrupt_epit2(void) {
 	epit2_r->EPIT_CR &= ~EPIT_CR_ENABLE;
 	int err = seL4_IRQHandler_Ack(epit2_irq_cap);
 	assert(!err);
-	printf("EPIT2 AWOKE AT: %lld\n",time_stamp());
 
-	static int test = 0;
+	timer_interrupt();
 
-	timestamp_t cur = time_stamp();
-
-	if(test == 0) {
-		printf("Sleeping for 1 second\n");
-		cur += MICROSECONDS_PER_SECOND;
-		printf("\x01");
-		test++;
-	} else if (test == 1) {
-		printf("Sleeping for 2 seconds\n");
-		cur += MICROSECONDS_PER_SECOND*2;
-		printf("\x01");
-		test++;
-	} else if (test == 2) {
-		printf("Sleeping for 5 seconds\n");
-		printf("\x01");
-		cur += MICROSECONDS_PER_SECOND*5;
-		test = 0;
-	}
-	epit2_sleepto(cur);
 	return 0;
 	//Handle event timer
 }

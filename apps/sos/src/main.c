@@ -426,6 +426,11 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
     return badged_cap;
 }
 
+
+static void simple_timer_callback(uint32_t id, void *data)
+{
+    printf("Hello World (%u)\n",id);
+}
 /*
  * Main entry point - called by crt.
  */
@@ -446,6 +451,8 @@ int main(void) {
 
     start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1)
         , badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
+
+    register_timer(1000*1000*3,&simple_timer_callback,NULL);
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
