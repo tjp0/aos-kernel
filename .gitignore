@@ -10,3 +10,4 @@ aos.sublime-workspace
 compile_commands.json
 .config
 .config.old
+.*
