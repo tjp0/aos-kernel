@@ -47,6 +47,7 @@
  * distinguish interrupt sources */
 #define IRQ_BADGE_NETWORK (1 << 0)
 #define IRQ_BADGE_EPIT1 (1 << 1)
+#define IRQ_BADGE_EPIT2 (1 << 2)
 
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
 #define TTY_PRIORITY         (0)
@@ -153,7 +154,10 @@ void syscall_loop(seL4_CPtr ep) {
                 network_irq();
             }
             if (badge & IRQ_BADGE_EPIT1) {
-                timer_interrupt();
+                timer_interrupt_epit1();
+            }
+            if (badge & IRQ_BADGE_EPIT2) {
+                timer_interrupt_epit2();
             }
 
         }else if(label == seL4_VMFault){
@@ -440,7 +444,8 @@ int main(void) {
 
     global_serial = serial_init();
 
-    start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1));
+    start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1)
+        , badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);

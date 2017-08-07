@@ -1,0 +1,2 @@
+#!/bin/sh
+arm-none-eabi-objdump -Dlx stage/arm/imx6/bin/sos | grep --color=always -C50 "$1"
