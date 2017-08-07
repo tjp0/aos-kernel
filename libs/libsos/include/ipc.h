@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <sel4/sel4.h>
+#include <string.h>
 
 struct ipc_command {
 	int length;

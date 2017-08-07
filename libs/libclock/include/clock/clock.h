@@ -33,7 +33,7 @@ typedef void (*timer_callback_t)(uint32_t id, void *data);
  *
  * Returns CLOCK_R_OK iff successful.
  */
-int start_timer(seL4_CPtr interrupt_ep);
+int start_timer(seL4_CPtr epit1_ep, seL4_CPtr epit2_ep);
 
 /*
  * Register a callback to be called after a given delay
@@ -54,10 +54,18 @@ int remove_timer(uint32_t id);
 
 /*
  * Handle an interrupt message sent to 'interrupt_ep' from start_timer
+ * for the EPIT1 timer
  *
  * Returns CLOCK_R_OK iff successful
  */
-int timer_interrupt(void);
+int timer_interrupt_epit1(void);
+/*
+ * Handle an interrupt message sent to 'interrupt_ep' from start_timer
+ * for the EPIT2 timer
+ *
+ * Returns CLOCK_R_OK iff successful
+ */
+int timer_interrupt_epit2(void);
 
 /*
  * Returns present time in microseconds since booting.
