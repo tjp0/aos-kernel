@@ -9,7 +9,7 @@
 #include <time.h>
 
 #include "beep.h"
-#include "clock.h"
+#include <clock/clock.h>
 
 #define RANDOM_WALK_NUM 1000
 
@@ -163,7 +163,10 @@ void test_size(int nodes){
 
 int main(int argc, char const *argv[]){
 	test_beep();
-	start_timer(0);
+	timer_init();
+
+	register_timer(100,NULL,NULL);	
+
 	// remove_timer(0);
 	return 0;
 }

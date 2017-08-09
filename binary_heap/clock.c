@@ -17,6 +17,9 @@
 #include "timer.h"
 #include "beep.h"
 
+#define verbose 5
+#include <sys/debug.h>
+
 #define MAX_TIMERS 100
 
 typedef struct _timer_struct {
@@ -49,6 +52,7 @@ void timer_init(void){
 
 static void init_timer_list(void){
 	first_free = (timer_struct *)malloc(sizeof(timer_struct) * MAX_TIMERS);
+	assert(first_free != NULL);
 	timer_list = first_free;
 
 	int i = 0;
@@ -69,15 +73,15 @@ static void init_timer_list(void){
 }
 
 static void init_beep(void){
-	beep_struct *beep = malloc(get_beep_size_for_n_nodes(MAX_TIMERS));
+	beep = malloc(get_beep_size_for_n_nodes(MAX_TIMERS));
 	assert(beep != NULL);
 	make_beep(beep, MAX_TIMERS);
 }
 
 static timer_struct *create_timer_add_to_list(uint64_t delay, timer_callback_t callback, void *data){
 	timer_struct *free_timer_struct = first_free;
-	if (free_timer_struct == 0){
-		printf("NO TIMERS LEFT\n");
+	if (free_timer_struct == NULL){
+		dprintf(0,"NO TIMERS LEFT\n");
 		return 0;
 	}
 
@@ -97,7 +101,7 @@ static uint32_t add_timer_to_beep(timer_struct *timer){
 	node_data nd = push(beep, timer->delay, (node_data)timer->id);
 	printf("nd: (%u)\n",nd);
 	if (timer_from_id(nd) != timer){
-		printf("FAILED TO PUSH\n");
+		dprintf(0,"FAILED TO PUSH\n");
 		return CLOCK_R_FAIL;
 	}
 	return 0;
@@ -114,6 +118,7 @@ static uint32_t add_timer_to_beep(timer_struct *timer){
  */
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data){
 
+	delay *= 1000;
 	delay += time_stamp();
 	timer_struct * timer = create_timer_add_to_list(delay, callback, data);
 	if (timer == 0) {
@@ -123,19 +128,12 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data){
 	if (res == CLOCK_R_FAIL) {
 		return 0;
 	}
-
-	printf("Timer added to beep\n");
 	node_data cur = peek(beep);
 	timer_struct* soonest_timer = timer_from_id(cur);
-
+	
 	if(soonest_timer == timer) {
 		epit2_sleepto(delay);
 	}
-	// now we do the bit where it's all
-	// in blah seconds go call timer_interrupt
-
-	// if this delay is smaller than our current smallest
-	// deal with it. use peek or something
 
 	return timer->id;
 }
@@ -144,7 +142,6 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data){
 static void free_timer(timer_struct * timer){
 	timer->next_timer = first_free;
 	first_free = timer;
-
 	timer->callback = 0;
 	timer->delay = 0;
 	timer->data = 0;
@@ -177,11 +174,10 @@ int remove_timer(uint32_t id){
  */
 int timer_interrupt(void){
 	if (is_empty(beep)){
-		printf("NO TIMER IS REGISTERED! why am i being interupted!\n");
+		dprintf(0,"NO TIMER IS REGISTERED! why am i being interupted!\n");
 		return CLOCK_R_FAIL;
 	}
-	printf("Timer interrupt\n");
-	while(timer_from_id(peek(beep))->delay <= time_stamp())
+	while(peek(beep) != -1 && timer_from_id(peek(beep))->delay <= time_stamp())
 	{
 		node_data id = pop(beep);
 		timer_struct * timer = timer_from_id(id);
@@ -190,7 +186,7 @@ int timer_interrupt(void){
 		free_timer(timer);
 	}
 
-	if(peek(beep) != 0) {
+	if(peek(beep) != -1) {
 		epit2_sleepto(timer_from_id(peek(beep))->delay);
 	}
 	return CLOCK_R_OK;

@@ -28,6 +28,7 @@ unsigned int get_beep_size_for_n_nodes(unsigned int num_nodes){
  * nodes I can fit and i'll handle things
  * * * * * * * * * * * * * * * * * * * * * * */
 void make_beep(beep_struct *mem, unsigned int node_capacity){
+	assert(mem != NULL);
 	beep_struct *beep = (beep_struct *)mem;
 	beep->node_capacity = node_capacity;
 	beep->nodes_in_use = 0;
@@ -66,11 +67,12 @@ int num_nodes(beep_struct *beep){
  * highest priority means smallest number
  * * * * * * * * * * * * * * * * * * * * * * */
 node_data pop(beep_struct *beep){
+	assert(beep != NULL);
 	if (beep->nodes_in_use <= 0){
 		if (DEBUG){
 			printf("BEEP IS EMPTY\n");
 		}
-		return NULL;
+		return -1;
 	}
 	node_data data = beep->node_array[0].data;
 	percolate_down(beep);
@@ -78,11 +80,12 @@ node_data pop(beep_struct *beep){
 }
 
 node_data peek(beep_struct *beep){
+	assert(beep != NULL);
 	if (beep->nodes_in_use <= 0){
 		if (DEBUG){
 			printf("BEEP IS EMPTY\n");
 		}
-		return NULL;
+		return -1;
 	}
 	return beep->node_array[0].data;
 }
@@ -91,11 +94,12 @@ node_data peek(beep_struct *beep){
  * Push a new entry to the heap
  * * * * * * * * * * * * * * * * * * * * * * */
 int push(beep_struct *beep, priority_type priority, node_data data){
+	assert(beep != NULL);
 	if (beep->nodes_in_use >= beep->node_capacity){
 		if (DEBUG){
 			printf("CAN'T FIT ANY MORE NODES\n");
 		}
-		return NULL;
+		return -1;
 	}
 	// We now have another node so increment our count
 	beep->nodes_in_use += 1;
@@ -122,6 +126,7 @@ int push(beep_struct *beep, priority_type priority, node_data data){
 
 
 void print_beep(beep_struct *beep){
+	assert(beep != NULL);
 	int level = 1;
 	int index = 0;
 	printf("----------------------\n");
@@ -142,7 +147,7 @@ void print_beep(beep_struct *beep){
 
 /* PRIVATE FUNCTIONS*/
 void percolate_down(beep_struct *beep){
-
+	assert(beep != NULL);
 	// Grab the last element
 	unsigned int last_pos = beep->nodes_in_use;
 
@@ -216,16 +221,13 @@ void percolate_down(beep_struct *beep){
 			break;
 		}
 	}
-
 	beep->node_array[cur_pos-1].priority = percolate_pri;
 	beep->node_array[cur_pos-1].data = percolate_dat;
-
 	beep->nodes_in_use -= 1;
 	return ;
 }
 
 void set_node_from_node(node_struct *n1, node_struct *n2){
-
 	n1->data = n2->data;
 	n1->priority = n2->priority;
 }
@@ -234,6 +236,7 @@ void set_node_from_data(
 	node_struct *node,
 	priority_type priority,
 	node_data data){
+	assert(node != NULL);
 
 	node->data = data;
 	node->priority = priority;

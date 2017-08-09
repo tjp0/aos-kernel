@@ -107,17 +107,19 @@ int timer_interrupt_epit1(void) {
 	return 0;
 }
 
-void epit2_sleepto(timestamp_t timestamp) {
+int epit2_sleepto(timestamp_t timestamp) {
 	int64_t curtime = time_stamp();
 	int64_t diff = timestamp - curtime;
 	if(diff > UINT32_MAX*4096*TICKS_PER_MICROSECOND) {
 		/* Fail */
-		printf("TOO BIG SO FAIL\n");
+		dprintf(0,"TOO BIG SO FAIL\n");
+		return 0;
 	}
 
 	if(diff < 0) {
-		printf("IMEEDIATE RUN\n");
-		/* TODO: Handle immediately */
+		dprintf(0,"IMEEDIATE RUN\n");
+		diff = 1; /* Set the timer to go off in one microsecond */
+		return 0;
 	}
 
 	diff *= TICKS_PER_MICROSECOND;
@@ -137,8 +139,10 @@ void epit2_sleepto(timestamp_t timestamp) {
 	epit2_r->EPIT_SR |= 1;
 	epit2_r->EPIT_CR |= EPIT_CR_ENABLE;
 
-	printf("Sleeping until %lld. Current time is %lld\n",timestamp,curtime);
-	printf("(%lld) ticks, (%u) scaler\n",diff,scaler_bit+1);
+	dprintf(0,"Sleeping until %lld. Current time is %lld\n",timestamp,curtime);
+	dprintf(0,"(%lld) ticks, (%u) scaler\n",diff,scaler_bit+1);
+
+	return 1;
 }
 
 int timer_interrupt_epit2(void) {
@@ -146,11 +150,8 @@ int timer_interrupt_epit2(void) {
 	epit2_r->EPIT_CR &= ~EPIT_CR_ENABLE;
 	int err = seL4_IRQHandler_Ack(epit2_irq_cap);
 	assert(!err);
-
 	timer_interrupt();
-
 	return 0;
-	//Handle event timer
 }
 
 timestamp_t time_stamp(void) {

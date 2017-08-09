@@ -8,7 +8,8 @@
 
 
 #include <stdint.h>
-typedef uint32_t node_data;
+#include <assert.h>
+typedef int32_t node_data;
 typedef unsigned int priority_type;
 
 typedef struct _node {

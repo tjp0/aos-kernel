@@ -1,0 +1,3 @@
+#!/bin/sh
+/etc/init.d/tftpd-hpa start
+/etc/init.d/nfs-kernel-server start
