@@ -13,7 +13,7 @@
 #include <ut_manager/ut.h>
 #include "vmem_layout.h"
 
-#define verbose 0
+#define verbose 2
 #include <sys/panic.h>
 #include <sys/debug.h>
 #include <cspace/cspace.h>
@@ -68,6 +68,10 @@ map_page(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr,
             /* Try the mapping again */
             err = seL4_ARM_Page_Map(frame_cap, pd, vaddr, rights, attr);
         }
+    }
+
+    if(!err) {
+        dprintf(2,"Mapping page at %p\n",vaddr);
     }
 
     return err;
