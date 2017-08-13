@@ -59,6 +59,8 @@ int is_empty(beep_struct *beep);
 // Return the number of nodes in the struct
 int num_nodes(beep_struct *beep);
 
+// Return the number of nodes in the struct
+int node_capacity(beep_struct *beep);
 /*
  * Pop the highest priority thing off the heap
  * highest priority means smallest number
@@ -72,10 +74,15 @@ node_data peek(beep_struct *beep);
 int push(beep_struct *beep, priority_type priority, node_data data);
 
 
+void delete_pos(beep_struct *beep, unsigned int pos);
+void delete_element(beep_struct *beep, node_data data);
+void update_size(beep_struct *beep, unsigned int new_capacity);
+
+
 void print_beep(beep_struct *beep);
 
 /* PRIVATE FUNCTIONS*/
-void percolate_down(beep_struct *beep);
+void percolate_down(beep_struct *beep, unsigned int pos);
 void set_node_from_node(node_struct *n1, node_struct *n2);
 void set_node_from_data(
 	node_struct *node,

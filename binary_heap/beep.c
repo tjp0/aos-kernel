@@ -75,7 +75,7 @@ node_data pop(beep_struct *beep){
 		return -1;
 	}
 	node_data data = beep->node_array[0].data;
-	percolate_down(beep);
+	percolate_down(beep, 1);
 	return data;
 }
 
@@ -98,6 +98,7 @@ int push(beep_struct *beep, priority_type priority, node_data data){
 	if (beep->nodes_in_use >= beep->node_capacity){
 		if (DEBUG){
 			printf("CAN'T FIT ANY MORE NODES\n");
+			printf("in use == %d, cap = %d\n", beep->nodes_in_use, beep->node_capacity);
 		}
 		return -1;
 	}
@@ -133,7 +134,6 @@ void print_beep(beep_struct *beep){
 	while (level <= beep->nodes_in_use*2){
 		int starting_index = index;
 		while (index < level + starting_index && index < beep->nodes_in_use) {
-			int i;
 			printf("%d ", beep->node_array[index].priority);
 			index += 1;
 		}
@@ -145,8 +145,38 @@ void print_beep(beep_struct *beep){
 
 // make it go from a position
 
+void delete_pos(beep_struct *beep, unsigned int pos){
+	percolate_down(beep, pos);
+}
+
+
+// Return 0 on success
+void delete_element(beep_struct *beep, node_data data){
+	int i = 0;
+	for (i = 0; i < beep->nodes_in_use; ++i) {
+		if (beep->node_array[i].data == data){
+			delete_pos(beep, i+1);
+			return 0;
+		}
+	}
+	if (DEBUG){
+		printf("Didn't find %p\n", data);
+		print_beep(beep);
+	}
+	assert(0); // Raise an error that we didn't find our element
+}
+void update_size(beep_struct *beep, unsigned int new_capacity){
+	// This assumes you've like realloced or someting
+	beep->node_capacity = new_capacity;
+	beep->node_array = (node_struct *)(((char *)beep) + sizeof(beep_struct));
+}
+
+int node_capacity(beep_struct *beep){
+	return beep->node_capacity;
+}
+
 /* PRIVATE FUNCTIONS*/
-void percolate_down(beep_struct *beep){
+void percolate_down(beep_struct *beep, unsigned int pos){
 	assert(beep != NULL);
 	// Grab the last element
 	unsigned int last_pos = beep->nodes_in_use;
@@ -156,8 +186,7 @@ void percolate_down(beep_struct *beep){
 
 	// last_pos -= 1;
 
-	unsigned int cur_pos = 1;
-	priority_type cur_pri = 0;
+	unsigned int cur_pos = pos;
 
 	unsigned int n1_pos = 0;
 	priority_type n1_pri = 0;
