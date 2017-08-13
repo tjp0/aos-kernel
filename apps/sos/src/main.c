@@ -35,6 +35,9 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
+
+#include "test_timer.h"
+
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
 #define USER_EP_CAP          (1)
@@ -54,8 +57,6 @@
 #define TTY_EP_BADGE         (101)
 
 
-
-#define BUILD_NUM 30
 
 
 /* The linker will link this symbol to the start address  *
@@ -98,10 +99,6 @@ seL4_CPtr _sos_interrupt_ep_cap;
  */
 extern fhandle_t mnt_point;
 
-static void test_timers(void);
-static void count_down(void);
-static void chain(void);
-static void build_n_kill(void);
 
 void handle_syscall(seL4_Word badge, int num_args) {
     seL4_Word syscall_number;
@@ -436,77 +433,6 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 }
 
 
-static void simple_timer_callback(uint32_t id, void *data) {
-    printf("I am Timer %d, who was created with %p\n", id, data);
-    printf("It has been %lld milliseconds since boot\n",time_stamp()/1000);
-    // register_timer(1000,&simple_timer_callback,NULL);
-}
-
-
-static void death(uint32_t id, void *data) {
-    printf("I am a DEAD!!!!!!!!!! Timer %d, who was created with %p\n", id, data);
-    // printf("It has been %lld milliseconds since boot\n",time_stamp()/1000);
-    // register_timer(1000,&simple_timer_callback,NULL);
-}
-
-
-static void nest(uint32_t id, void *data) {
-    printf("I am nested Timer %d, who was created with %p\n", id, data);
-    if (data) {
-        register_timer(1000,&nest,data-1);
-    }
-}
-
-
-static void test_timers(void){
-    count_down();
-    chain();
-    build_n_kill();
-}
-
-static void count_down(void){
-    // Count down 10 seconds in 100 increments
-    void *data = 0;
-    int i = 0;
-    uint32_t id;
-    int max_counters = 50;
-    for (i = 0; i < max_counters; ++i) {
-        data = (void *)i;
-        id = register_timer(10000 - 100*i,&simple_timer_callback, data);
-        printf("I just registered timer %d with %p\n", id, data);
-    }
-}
-static void build_n_kill(void){
-    // Count down 10 seconds in 100 increments
-    void *data = 0;
-    int i = 0;
-    uint32_t id;
-    int max_counters = BUILD_NUM;
-    unsigned int ids[BUILD_NUM];
-    for (i = 0; i < max_counters; ++i) {
-        data = (void *)i;
-        id = register_timer(1000,&death, data);
-        printf("I just registered a death timer %d with %p\n", id, data);
-        ids[i] = id;
-    }
-    for (i = 0; i < max_counters; ++i) {
-        unsigned int res = remove_timer(ids[i]);
-        printf("res = %s\n", res);
-    }
-    printf("killed all the timers\n");
-    
-
-
-
-}
-
-static void chain(void){
-    // Start a list of nested timers
-    uint32_t id = register_timer(1000,&nest, (void *)100);
-    printf("I just registered a nest timer %d\n", id);
-}
-
-
 /*
  * Main entry point - called by crt.
  */
@@ -528,7 +454,7 @@ int main(void) {
     start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1)
         , badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
 
-    // test_timers();
+    test_timers();
     // register_timer(1000,&simple_timer_callback,NULL);
 
     /* Start the user application */

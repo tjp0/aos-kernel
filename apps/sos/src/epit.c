@@ -139,11 +139,24 @@ int epit2_sleepto(timestamp_t timestamp) {
 	epit2_r->EPIT_SR |= 1;
 	epit2_r->EPIT_CR |= EPIT_CR_ENABLE;
 
-	dprintf(0,"Sleeping until %lld. Current time is %lld\n",timestamp,curtime);
-	dprintf(0,"(%lld) ticks, (%u) scaler\n",diff,scaler_bit+1);
+	// dprintf(0,"Sleeping until %lld. Current time is %lld\n",timestamp,curtime);
+
+	// If I comment out this line, the timer won't work unless you call this
+	// function twice
+	// dprintf(0,"(%lld) ticks, (%u) scaler\n",diff,scaler_bit+1);
+	dprintf(0,"(%lld) ticks, \n",diff);
 
 	return 1;
 }
+
+
+
+
+
+
+
+
+
 
 int timer_interrupt_epit2(void) {
 	epit2_r->EPIT_SR |= 1;

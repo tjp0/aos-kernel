@@ -52,6 +52,7 @@ static void print_timer(timer_struct *timer, char *name);
 
 static void fill_list(timer_struct *start, unsigned int num, unsigned int offset);
 
+
 void timer_init(void){
 	init_timer_list();
 	init_beep();
@@ -93,7 +94,10 @@ static void init_beep(void){
 }
 
 static void expand(void){
-	printf("EXPANDING\n");
+
+	if (DEBUG) {
+		printf("EXPANDING\n");
+	}
 
 	/* Expand the beep */
 	// double the number of nodes we can have
@@ -108,30 +112,26 @@ static void expand(void){
 	timer_struct *old = timer_list;
 	timer_list = (timer_struct *)realloc(timer_list, sizeof(timer_struct) * new_capacity);
 	assert(timer_list != NULL);
+
+	// we need to fill current_capacity many slots
+	// starting at current_capacity + 1 since the array starts at 1
+	fill_list(&(timer_list[current_capacity]), current_capacity, current_capacity + 1);
+
 	// timer_list = first_free;
 	// calculate where we have moved to from the realloc
 	uint64_t diff = timer_list - old;
 	// update all the nodes
 	timer_struct *cur = first_free + diff;
 	while (cur && cur->next_timer) {
-		dprintf(0,"shifting %d\n", cur->id);
 		cur->next_timer += diff;
 		cur = cur->next_timer;
 	}
 	if (cur) {
-		dprintf(0,"cur %d\n", cur->id);
-
-		// we need to fill current_capacity many slots
-		// starting at current_capacity + 1 since the array starts at 1
-		fill_list(&(timer_list[current_capacity]), current_capacity, current_capacity + 1);
 		cur->next_timer = &(timer_list[current_capacity]);
 		first_free = cur;
 	}else{
 		first_free = &(timer_list[current_capacity]);
-		dprintf(0,"fresh %d\n", first_free->id);
 	}
-
-	print_timer(first_free, "first_free_after_expand");
 }
 
 static void print_timer(timer_struct *timer, char *name){
@@ -143,9 +143,10 @@ static void print_timer(timer_struct *timer, char *name){
 
 static timer_struct *create_timer_add_to_list(uint64_t delay, timer_callback_t callback, void *data){
 	timer_struct *free_timer_struct = first_free;
-	print_timer(first_free, "first_free");
 	if (free_timer_struct == NULL){
-		dprintf(0,"NO TIMERS LEFT!!\n");
+		if (DEBUG){
+			dprintf(0,"NO TIMERS LEFT!!\n");
+		}
 		return 0;
 	}
 	timer_struct *next_timer = first_free->next_timer;
@@ -163,6 +164,8 @@ static timer_struct *create_timer_add_to_list(uint64_t delay, timer_callback_t c
 	free_timer_struct->data = data;
 	free_timer_struct->next_timer = 0;
 
+	assert(free_timer_struct == timer_from_id(free_timer_struct->id));
+
 	return free_timer_struct;
 }
 
@@ -170,9 +173,14 @@ static timer_struct *create_timer_add_to_list(uint64_t delay, timer_callback_t c
 static uint32_t add_timer_to_beep(timer_struct *timer){
 	// add the delay as the priority and it's id as the data item
 	node_data nd = push(beep, timer->delay, (node_data)timer->id);
-	printf("nd: (%u)\n",nd);
 	if (timer_from_id(nd) != timer){
-		dprintf(0,"FAILED TO PUSH\n");
+		if (DEBUG){
+			print_timer(timer, "bad_push");
+			print_timer(timer_from_id(nd), "timer_from_id");
+			dprintf(0, "given :%d\n", timer->id);
+			dprintf(0, "returned :%d\n", nd);
+			dprintf(0,"FAILED TO PUSH\n");
+		}
 		return CLOCK_R_FAIL;
 	}
 	return 0;
@@ -188,9 +196,13 @@ static uint32_t add_timer_to_beep(timer_struct *timer){
  * Returns 0 on failure, otherwise a unique ID for this timeout
  */
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data){
+
+	dprintf(0, "registering timer with delay %llu\n", delay);
 	assert(callback != 0);
 	delay *= 1000;
 	delay += time_stamp();
+	dprintf(0, "which will be called at %llu\n", delay);
+
 	timer_struct * timer = create_timer_add_to_list(delay, callback, data);
 	if (timer == 0) {
 		return 0;
@@ -203,6 +215,7 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data){
 	timer_struct* soonest_timer = timer_from_id(cur);
 	
 	if(soonest_timer == timer) {
+		dprintf(0, "updating soonest timer %d until %llu\n", cur, delay);
 		epit2_sleepto(delay);
 	}
 
@@ -220,11 +233,7 @@ static void free_timer(timer_struct * timer){
 }
 
 static timer_struct * timer_from_id(uint32_t id){
-	printf("ID: (%u)\n",id);
 	uint32_t index = id - 1;
-	if (DEBUG) {
-		printf("(%u)/%d/%d\n",index, num_nodes(beep), node_capacity(beep));
-	}
 	assert(index >= 0);
 	assert(index < node_capacity(beep));
 	return &(timer_list[index]);
@@ -238,13 +247,11 @@ static timer_struct * timer_from_id(uint32_t id){
  */
 int remove_timer(uint32_t id){
 	timer_struct * timer = timer_from_id(id);
-	print_timer(timer, "timer_to_be_deleted");
 	if (is_timer_deleted(timer)){
 		return CLOCK_R_FAIL;
 	}
 
 	free_timer(timer);
-	print_timer(timer, "timer_deleted");
 	delete_element(beep, (node_data)timer->id);
 	return CLOCK_R_OK;
 }
@@ -256,7 +263,7 @@ int remove_timer(uint32_t id){
  */
 int timer_interrupt(void){
 	if (is_empty(beep)){
-		dprintf(0,"NO TIMER IS REGISTERED! why am i being interupted!\n");
+		// this happens when you remove all timers
 		return CLOCK_R_FAIL;
 	}
 	while(peek(beep) != -1 && timer_from_id(peek(beep))->delay <= time_stamp())
