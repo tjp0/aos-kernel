@@ -127,11 +127,15 @@ static void expand(void){
 		cur = cur->next_timer;
 	}
 	if (cur) {
+		printf("c\n");
 		cur->next_timer = &(timer_list[current_capacity]);
 		first_free = cur;
 	}else{
+
+		printf("d\n");
 		first_free = &(timer_list[current_capacity]);
 	}
+	printf("ff == %p\n", first_free);
 }
 
 static void print_timer(timer_struct *timer, char *name){
@@ -139,6 +143,13 @@ static void print_timer(timer_struct *timer, char *name){
 	dprintf(0, "%s->id = %d\n", name, timer->id);
 	dprintf(0, "%s->data = %d\n", name, timer->data);
 	dprintf(0, "%s->next_timer = %p\n", name, timer->next_timer);
+}
+
+static void print_list(void){
+	for (int i = 0; i < node_capacity(beep); ++i) {
+		/* code */
+		printf("%d\n", timer_list[i].id);
+	}
 }
 
 static timer_struct *create_timer_add_to_list(uint64_t delay, timer_callback_t callback, void *data){
@@ -150,20 +161,30 @@ static timer_struct *create_timer_add_to_list(uint64_t delay, timer_callback_t c
 		return 0;
 	}
 	timer_struct *next_timer = first_free->next_timer;
+
+
+	print_timer(first_free, "first_free");
 	if (!next_timer){
 		// The list is nearly full, so we should expand
 		expand();
+
+		print_timer(first_free, "first_free");
 		next_timer = first_free->next_timer;
 		free_timer_struct = first_free;
 	}
 
 	first_free = next_timer;
+	
+	print_timer(first_free, "first_free");
 
 	free_timer_struct->delay = delay;
 	free_timer_struct->callback = callback;
 	free_timer_struct->data = data;
 	free_timer_struct->next_timer = 0;
 
+	print_list();
+	print_timer(free_timer_struct, "free_timer_struct");
+	print_timer(timer_from_id(free_timer_struct->id), "id_timer");
 	assert(free_timer_struct == timer_from_id(free_timer_struct->id));
 
 	return free_timer_struct;

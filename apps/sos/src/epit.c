@@ -144,7 +144,10 @@ int epit2_sleepto(timestamp_t timestamp) {
 	// If I comment out this line, the timer won't work unless you call this
 	// function twice
 	// dprintf(0,"(%lld) ticks, (%u) scaler\n",diff,scaler_bit+1);
-	dprintf(0,"(%lld) ticks, \n",diff);
+	// dprintf(0,"(%u)\n",diff);
+	dprintf(0,"(%lld)\n",diff);
+	// (void)diff;
+	// dprintf(0,"ticks, \n");
 
 	return 1;
 }

@@ -32,7 +32,7 @@ void death(uint32_t id, void *data) {
 void nest(uint32_t id, void *data) {
     printf("I am nested Timer %d, who was created with %p\n", id, data);
     if (data) {
-        register_timer(1000,&nest,data-1);
+        register_timer(100,&nest,data-1);
     }
 }
 
@@ -56,7 +56,7 @@ void test_timers(void){
     // count_down();
     // chain();
     // build_n_kill();
-    // test_exponential();
+    test_exponential();
 }
 
 void test_exponential(void){
@@ -86,17 +86,17 @@ void simple(void){
     id = register_timer(delay, &simple_timer_callback, data);
     printf("I just registered timer %d with data:%p delay:%u\n", id, data, delay);
 
-    // delay = 2000;
-    // id = register_timer(delay, &simple_timer_callback, data);
-    // printf("I just registered timer %d with data:%p delay:%u\n", id, data, delay);
+    delay = 2000;
+    id = register_timer(delay, &simple_timer_callback, data);
+    printf("I just registered timer %d with data:%p delay:%u\n", id, data, delay);
 
-    // delay = 3000;
-    // id = register_timer(delay, &simple_timer_callback, data);
-    // printf("I just registered timer %d with data:%p delay:%u\n", id, data, delay);
+    delay = 3000;
+    id = register_timer(delay, &simple_timer_callback, data);
+    printf("I just registered timer %d with data:%p delay:%u\n", id, data, delay);
 
-    // delay = 4000;
-    // id = register_timer(delay, &simple_timer_callback, data);
-    // printf("I just registered timer %d with data:%p delay:%u\n", id, data, delay);
+    delay = 4000;
+    id = register_timer(delay, &simple_timer_callback, data);
+    printf("I just registered timer %d with data:%p delay:%u\n", id, data, delay);
 }
 
 
@@ -106,10 +106,10 @@ void count_down(void){
     void *data = 0;
     int i = 0;
     uint32_t id;
-    int max_counters = 5;
+    int max_counters = 20;
     for (i = 0; i < max_counters; ++i) {
         data = (void *)i;
-        uint32_t delay = 5000;// 1000*i + 1000; //1000*max_counters +
+        uint32_t delay = -1000*i + 1000 + 1000*max_counters;
 
         id = register_timer(delay,&simple_timer_callback, data);
         printf("I just registered timer %d with data:%p delay:%u\n", id, data, delay);
