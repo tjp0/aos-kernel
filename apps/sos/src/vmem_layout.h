@@ -16,7 +16,7 @@
 #define FRAME_VEND			((unsigned int) (FRAME_VSTART + (1ull << FRAME_SIZE_BITS)))
 
 #define FRAME_TABLE_VSTART (FRAME_VEND+0x1000)
-#define FRAME_TABLE_SIZE_BITS (22)
+#define FRAME_TABLE_SIZE_BITS (24)
 #define FRAME_TABLE_VEND ((unsigned int) (FRAME_TABLE_VSTART + (1ull << FRAME_TABLE_SIZE_BITS)))
 
 /* Address where memory used for DMA starts getting mapped.
