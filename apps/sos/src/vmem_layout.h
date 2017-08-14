@@ -11,11 +11,19 @@
 #ifndef _MEM_LAYOUT_H_
 #define _MEM_LAYOUT_H_
 
+#define FRAME_VSTART		(0x08000000)
+#define FRAME_SIZE_BITS		(31)
+#define FRAME_VEND			((unsigned int) (FRAME_VSTART + (1ull << FRAME_SIZE_BITS)))
+
+#define FRAME_TABLE_VSTART (FRAME_VEND+0x1000)
+#define FRAME_TABLE_SIZE_BITS (24)
+#define FRAME_TABLE_VEND ((unsigned int) (FRAME_TABLE_VSTART + (1ull << FRAME_TABLE_SIZE_BITS)))
+
 /* Address where memory used for DMA starts getting mapped.
  * Do not use the address range between DMA_VSTART and DMA_VEND */
-#define DMA_VSTART          (0x10000000)
+#define DMA_VSTART          (FRAME_TABLE_VEND+0x1000)
 #define DMA_SIZE_BITS       (22)
-#define DMA_VEND            (DMA_VSTART + (1ull << DMA_SIZE_BITS))
+#define DMA_VEND            ((unsigned int) (DMA_VSTART + (1ull << DMA_SIZE_BITS)))
 
 /* From this address onwards is where any devices will get mapped in
  * by the map_device function. You should not use any addresses beyond

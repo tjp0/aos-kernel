@@ -30,6 +30,7 @@
 #include "mapping.h"
 
 #include <autoconf.h>
+#include <frametable.h>
 
 #define verbose 5
 #include <sys/debug.h>
@@ -397,6 +398,13 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     conditional_panic(!_boot_info, "Failed to retrieve boot info\n");
     if(verbose > 0){
         print_bootinfo(_boot_info);
+
+    printf("\nFRAME_VSTART:\t %p\n",FRAME_VSTART);
+    printf("FRAME_VEND:\t %p\n", FRAME_VEND);
+    printf("FRAME_TABLE_VSTART:\t %p\n",FRAME_TABLE_VSTART);
+    printf("FRAME_TABLE_VEND:\t %p\n",FRAME_TABLE_VEND);
+    printf("DMA_VSTART:\t %p\n", DMA_VSTART);
+    printf("DMA_VEND:\t %p\n",DMA_VEND);
     }
 
     /* Initialise the untyped sub system and reserve memory for DMA */
@@ -405,6 +413,8 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* DMA uses a large amount of memory that will never be freed */
     dma_addr = ut_steal_mem(DMA_SIZE_BITS);
     conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");
+
+    seL4_Word ft_base = ft_early_initialize(_boot_info);
 
     /* find available memory */
     ut_find_memory(&low, &high);
@@ -420,6 +430,8 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* Initialise DMA memory */
     err = dma_init(dma_addr, DMA_SIZE_BITS);
     conditional_panic(err, "Failed to intiialise DMA memory\n");
+
+    ft_late_initialize(ft_base);
 
     /* Initialiase other system compenents here */
 
@@ -456,6 +468,8 @@ int main(void) {
 
     test_timers();
     // register_timer(1000,&simple_timer_callback,NULL);
+
+    frame_test();
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
