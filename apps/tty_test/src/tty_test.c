@@ -20,42 +20,39 @@
  ****************************************************************************/
 
 #include <assert.h>
+#include <ipc.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <ipc.h>
 
 #include <sel4/sel4.h>
-
 
 #include "ttyout.h"
 
 // Block a thread forever
 // we do this by making an unimplemented system call.
-static void
-thread_block(void){
-//    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
-//    seL4_SetTag(tag);
-//    seL4_SetMR(0, 1000);
-//    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+static void thread_block(void) {
+	//    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
+	//    seL4_SetTag(tag);
+	//    seL4_SetMR(0, 1000);
+	//    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
 
-    struct ipc_command ipc = ipc_create();
+	struct ipc_command ipc = ipc_create();
 
-    if(!ipc_packi(&ipc,100))
-    {
-        return 0;
-    }
-    ipc_call(&ipc,SYSCALL_ENDPOINT_SLOT);
+	if (!ipc_packi(&ipc, 100)) {
+		return 0;
+	}
+	ipc_call(&ipc, SYSCALL_ENDPOINT_SLOT);
 }
 
-int main(void){
-    /* initialise communication */
-    ttyout_init();
+int main(void) {
+	/* initialise communication */
+	ttyout_init();
 
-    do {
-        printf("task:\tHello world, I'm\ttty_test!\n");
-        thread_block();
-        // sleep(1);	// Implement this as a syscall
-    } while(1);
+	do {
+		printf("task:\tHello world, I'm\ttty_test!\n");
+		thread_block();
+		// sleep(1);	// Implement this as a syscall
+	} while (1);
 
-    return 0;
+	return 0;
 }

@@ -10,10 +10,7 @@ void nest(uint32_t id, void *data);
 
 void exponential(uint32_t id, void *data);
 
-
-
 void test_timers(void);
-
 
 void simple(void);
 

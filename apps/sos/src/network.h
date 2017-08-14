@@ -11,14 +11,14 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 
-#include <sel4/types.h>
 #include <nfs/nfs.h>
+#include <sel4/types.h>
 
 extern fhandle_t mnt_point;
 
 /**
  * Initialises the network stack
- * @param[in] interrupt_ep The asynchronous endpoint that the 
+ * @param[in] interrupt_ep The asynchronous endpoint that the
  *                         driver should use for registering IRQs
  */
 extern void network_init(seL4_CPtr interrupt_ep);

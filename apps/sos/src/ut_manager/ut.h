@@ -13,14 +13,12 @@
 
 #include <sel4/sel4.h>
 
-
-/* 
+/*
  * To abstract the details of untyped objects, we must restrict the
  * minimum size_bits of untyped objects such that any object can be
  * allocated provided that the address is aligned correctly
  */
 #define MIN_UT_SIZE_BITS seL4_PageDirBits
-
 
 /*
  * Linear address mapping
@@ -40,14 +38,12 @@
  *                      low  |_____|
  */
 
-
-
 /**
  * initialises the untyped->linear  mapping system
  * @param bi seL4 boot information
  * @return 0 on success
  */
-int ut_table_init(const seL4_BootInfo *bi);
+int ut_table_init(const seL4_BootInfo* bi);
 
 /**
  * Returns a valid memory range that can be used for ut_translate
@@ -63,7 +59,6 @@ void ut_find_memory(seL4_Word* low, seL4_Word* high);
  * @return a reserved size aligned memory region
  */
 seL4_Word ut_steal_mem(int sizebits);
-
 
 /**
  * Translates an address in to a untyped object capability pointer and offset
@@ -83,8 +78,10 @@ void ut_allocator_init(seL4_Word low, seL4_Word high);
 
 /**
  * Reserve memory using the allocator
- * @param sizebits the amount of contiguous and aligned memory to reserve (2^sizebits)
- * @return the physical address of the reserved memory which can be passed to ut_translate
+ * @param sizebits the amount of contiguous and aligned memory to reserve
+ * (2^sizebits)
+ * @return the physical address of the reserved memory which can be passed to
+ * ut_translate
  */
 seL4_Word ut_alloc(int sizebits);
 
@@ -96,4 +93,3 @@ seL4_Word ut_alloc(int sizebits);
 void ut_free(seL4_Word addr, int sizebits);
 
 #endif /* _UT_H_ */
-
