@@ -6,7 +6,7 @@
 #include <ut_manager/ut.h>
 #include <vmem_layout.h>
 
-#define verbose 2
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 

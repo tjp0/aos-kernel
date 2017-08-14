@@ -438,10 +438,10 @@ int main(void) {
 	start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1),
 				badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
 
-	test_timers();
-	// register_timer(1000,&simple_timer_callback,NULL);
+	//test_timers();
+	register_timer(100,&simple_timer_callback,NULL);
 
-	frame_test();
+	//frame_test();
 
 	/* Start the user application */
 	start_first_process(TTY_NAME, _sos_ipc_ep_cap);

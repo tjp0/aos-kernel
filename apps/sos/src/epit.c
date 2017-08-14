@@ -6,7 +6,7 @@
 #include "timer.h"
 #include "ut_manager/ut.h"
 
-#define verbose 5
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -36,8 +36,8 @@ struct EPIT_r {
 	uint32_t EPIT_CNR;
 };
 
-static struct EPIT_r* epit1_r;
-static struct EPIT_r* epit2_r;
+static volatile struct EPIT_r* epit1_r;
+static volatile struct EPIT_r* epit2_r;
 
 static seL4_CPtr enable_irq(int irq, seL4_CPtr aep) {
 	seL4_CPtr cap;
@@ -100,9 +100,9 @@ int timer_interrupt_epit1(void) {
 	int err = seL4_IRQHandler_Ack(epit1_irq_cap);
 
 	time_stamp_wrap();
-	printf("ts upper: %u\n", ts_upper);
-	printf("ts lower: %u\n", ts_getlower());
-	printf("timestamp: %llu\n", time_stamp());
+	//printf("ts upper: %u\n", ts_upper);
+	//printf("ts lower: %u\n", ts_getlower());
+	//printf("timestamp: %llu\n", time_stamp());
 	assert(!err);
 	return 0;
 }
@@ -147,7 +147,7 @@ int epit2_sleepto(timestamp_t timestamp) {
 	// function twice
 	// dprintf(0,"(%lld) ticks, (%u) scaler\n",diff,scaler_bit+1);
 	// dprintf(0,"(%u)\n",diff);
-	dprintf(0, "(%lld)\n", diff);
+	dprintf(3, "(%lld)\n", diff);
 	// (void)diff;
 	// dprintf(0,"ticks, \n");
 
