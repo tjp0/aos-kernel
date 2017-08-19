@@ -121,6 +121,10 @@ void* frame_alloc(void) {
 	return new_frame;
 }
 
+struct frame* get_frame(void* addr) {
+	return &frame_table[VADDR_TO_FRAME_INDEX(addr)];
+}
+
 void frame_free(void* vaddr) {
 	if (frame_cache_tail < FRAME_CACHE_SIZE) {
 		frame_cache_tail++;
