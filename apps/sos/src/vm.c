@@ -74,6 +74,7 @@ static struct page_table* create_pt(struct page_directory* pd,
 
 fail1:
 	cspace_delete_cap(cur_cspace, pt_cap);
+	return NULL;
 fail2:
 	ut_free(pt_addr, seL4_PageTableBits);
 fail3:
