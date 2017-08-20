@@ -8,12 +8,9 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 0
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/panic.h>
-
-#define PTES_PER_TABLE 256
-#define PTS_PER_DIRECTORY 4096
 
 int pd_map_page(struct page_directory* pd, struct page_table_entry* page);
 
@@ -69,11 +66,13 @@ fail3:
 	return NULL;
 }
 
+static void free_pte(struct page_table_entry* pte) {
+	// TODO
+}
+
 static struct page_table_entry* create_pte(vaddr_t address,
 										   uint8_t permissions) {
-	dprintf(2, "Mallocing\n");
 	struct page_table_entry* pte = malloc(sizeof(struct page_table_entry));
-	dprintf(2, "Malloced\n");
 	memset(pte, 0, sizeof(struct page_table_entry));
 	pte->address = address;
 	pte->permissions = permissions;
@@ -137,7 +136,10 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 			return NULL;
 		}
 		dprintf(2, "Mapping page in\n");
-		pd_map_page(pd, pte);
+		if(pd_map_page(pd, pte) < 0) {
+			free_pte(pte);
+			return NULL;
+		}
 		pt->ptes[vaddr_to_pteoffset(address)] = pte;
 		dprintf(2, "New page created\n");
 	}
@@ -157,10 +159,11 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 	if (vcap == 0) {
 		return VM_FAIL;
 	}
-	err = seL4_ARM_Page_Map(page->frame->cap, pd->seL4_pd, page->address,
+	err = seL4_ARM_Page_Map(vcap, pd->seL4_pd, page->address,
 							seL4_AllRights, 0);
 
 	if (err) {
+		dprintf(0,"Failed to map page in, err code %d\n",err);
 		return VM_FAIL;
 	}
 	return VM_OKAY;

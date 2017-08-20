@@ -136,6 +136,8 @@ struct process* process_create(char* app_name, seL4_CPtr fault_ep) {
 	memset(&context, 0, sizeof(context));
 	context.pc = elf_getEntryPoint(elf_base);
 	context.sp = PROCESS_STACK_TOP;
+	
+	dprintf(0, "ELF ENTRY POINT IS %lu\n",elf_getEntryPoint(elf_base));
 
 	dprintf(0, "*** PROCESS STARTING ***\n");
 	seL4_TCB_WriteRegisters(process->tcb_cap, 1, 0, 2, &context);

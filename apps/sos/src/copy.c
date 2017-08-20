@@ -33,7 +33,7 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 
 	dprintf(0, "Copying from %p in KS to %p in US (%p in KS)\n", src,
 			(void*)dest_vaddr, dst);
-	memcpy(src, dst, len);
+	memcpy(dst, src, len);
 
 	if (flags & COPY_FLUSH) {
 		seL4_ARM_Page_Unify_Instruction(pte->frame->cap, 0, PAGE_SIZE_4K);

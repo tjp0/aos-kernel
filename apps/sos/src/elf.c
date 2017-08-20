@@ -84,7 +84,7 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 	if (copy_sos2vspace(src, dst, vspace, file_size, 1) < 0) {
 		return -1;
 	}
-	dprintf(0, "Initial data copied to region at %p\n", dst);
+	dprintf(0, "Initial data copied to region at %p\n", (void*) dst);
 	return 0;
 }
 
@@ -101,10 +101,10 @@ int elf_load(struct process *process, char *elf_file) {
 	for (i = 0; i < num_headers; i++) {
 		char *source_addr;
 		unsigned long flags, file_size, segment_size, vaddr;
-
 		/* Skip non-loadable segments (such as debugging data). */
 		if (elf_getProgramHeaderType(elf_file, i) != PT_LOAD) continue;
 
+		dprintf(0, " * Processing segment %d of %d\n", i+1, num_headers);
 		/* Fetch information about this segment. */
 		source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, i);
 		file_size = elf_getProgramHeaderFileSize(elf_file, i);
