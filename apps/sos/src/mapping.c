@@ -10,11 +10,10 @@
 
 #include "mapping.h"
 
+#include <cspace/cspace.h>
 #include <ut_manager/ut.h>
 #include "vmem_layout.h"
-
 #define verbose 2
-#include <cspace/cspace.h>
 #include <sys/debug.h>
 #include <sys/panic.h>
 

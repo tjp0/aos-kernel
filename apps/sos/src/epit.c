@@ -100,9 +100,9 @@ int timer_interrupt_epit1(void) {
 	int err = seL4_IRQHandler_Ack(epit1_irq_cap);
 
 	time_stamp_wrap();
-	//printf("ts upper: %u\n", ts_upper);
-	//printf("ts lower: %u\n", ts_getlower());
-	//printf("timestamp: %llu\n", time_stamp());
+	// printf("ts upper: %u\n", ts_upper);
+	// printf("ts lower: %u\n", ts_getlower());
+	// printf("timestamp: %llu\n", time_stamp());
 	assert(!err);
 	return 0;
 }

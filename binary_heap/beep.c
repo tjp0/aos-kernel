@@ -8,8 +8,7 @@
 
 #include "beep.h"
 
-#define DEBUG 0
-
+#define BEEP_DEBUG 0
 /* PUBLIC FUNCTIONS*/
 
 /*
@@ -58,7 +57,7 @@ int num_nodes(beep_struct *beep) { return beep->nodes_in_use; }
 node_data pop(beep_struct *beep) {
 	assert(beep != NULL);
 	if (beep->nodes_in_use <= 0) {
-		if (DEBUG) {
+		if (BEEP_DEBUG) {
 			printf("BEEP IS EMPTY\n");
 		}
 		return -1;
@@ -71,7 +70,7 @@ node_data pop(beep_struct *beep) {
 node_data peek(beep_struct *beep) {
 	assert(beep != NULL);
 	if (beep->nodes_in_use <= 0) {
-		if (DEBUG) {
+		if (BEEP_DEBUG) {
 			printf("BEEP IS EMPTY\n");
 		}
 		return -1;
@@ -85,7 +84,7 @@ node_data peek(beep_struct *beep) {
 int push(beep_struct *beep, priority_type priority, node_data data) {
 	assert(beep != NULL);
 	if (beep->nodes_in_use >= beep->node_capacity) {
-		if (DEBUG) {
+		if (BEEP_DEBUG) {
 			printf("CAN'T FIT ANY MORE NODES\n");
 			printf("in use == %d, cap = %d\n", beep->nodes_in_use,
 				   beep->node_capacity);
@@ -138,11 +137,11 @@ void delete_element(beep_struct *beep, node_data data) {
 	for (i = 0; i < beep->nodes_in_use; ++i) {
 		if (beep->node_array[i].data == data) {
 			delete_pos(beep, i + 1);
-			return 0;
+			return;
 		}
 	}
-	if (DEBUG) {
-		printf("Didn't find %p\n", data);
+	if (BEEP_DEBUG) {
+		printf("Didn't find %p\n", (void *)data);
 		print_beep(beep);
 	}
 	assert(0);  // Raise an error that we didn't find our element
@@ -178,7 +177,7 @@ void percolate_down(beep_struct *beep, unsigned int pos) {
 	priority_type next_pri = 0;
 
 	while (1) {
-		if (DEBUG) {
+		if (BEEP_DEBUG) {
 			printf("cur_pos: %d\n", cur_pos);
 		}
 		n1_pos = cur_pos * 2;
@@ -193,7 +192,7 @@ void percolate_down(beep_struct *beep, unsigned int pos) {
 		// if n1 is the last node
 		n1_pri = beep->node_array[n1_pos - 1].priority;
 		if (n2_pos > last_pos) {
-			if (DEBUG) {
+			if (BEEP_DEBUG) {
 				printf("last one\n");
 			}
 			next_pos = n1_pos;
@@ -202,13 +201,13 @@ void percolate_down(beep_struct *beep, unsigned int pos) {
 			// you have 2 children
 			n2_pri = beep->node_array[n2_pos - 1].priority;
 			if (n1_pri < n2_pri) {
-				if (DEBUG) {
+				if (BEEP_DEBUG) {
 					printf("smaller %d < %d\n", n1_pri, n2_pri);
 				}
 				next_pos = n1_pos;
 				next_pri = n1_pri;
 			} else {
-				if (DEBUG) {
+				if (BEEP_DEBUG) {
 					printf("bigger %d > %d\n", n1_pri, n2_pri);
 				}
 				next_pos = n2_pos;

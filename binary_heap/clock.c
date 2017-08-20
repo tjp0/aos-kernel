@@ -194,13 +194,14 @@ static void print_timer(timer_struct *timer, char *name) {
 	dprintf(0, "%s->data = %d\n", name, timer->data);
 	dprintf(0, "%s->next_timer = %p\n", name, timer->next_timer);
 }
-
+#ifdef DEBUG_TIMER
 static void print_list(void) {
 	for (int i = 0; i < node_capacity(beep); ++i) {
 		/* code */
 		dprintf(0, "%d\n", timer_list[i].id);
 	}
 }
+#endif
 
 static timer_struct *create_timer_add_to_list(uint64_t delay,
 											  timer_callback_t callback,

@@ -29,13 +29,7 @@
 #include <ipc.h>
 #include <sel4/sel4.h>
 
-void ttyout_init(void) { /* Perform any initialisation you require here */ }
-
-static size_t sos_debug_print(const void *vData, size_t count) {
-	size_t i;
-	const char *realdata = vData;
-	for (i = 0; i < count; i++) seL4_DebugPutChar(realdata[i]);
-	return count;
+void ttyout_init(void) { /* Perform any initialisation you require here */
 }
 
 size_t sos_write(void *vData, size_t count) {

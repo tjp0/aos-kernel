@@ -15,7 +15,7 @@
 void simple_timer_callback(uint32_t id, void *data) {
 	printf("I am Timer %d, who was created with %p\n", id, data);
 	printf("It has been %lld milliseconds since boot\n", time_stamp());
-	register_timer(100,&simple_timer_callback,NULL);
+	register_timer(100, &simple_timer_callback, NULL);
 }
 
 void death(uint32_t id, void *data) {
@@ -35,7 +35,7 @@ void nest(uint32_t id, void *data) {
 
 void exponential(uint32_t id, void *data) {
 	int i = 0;
-	for (i = 0; i < data; ++i) {
+	for (i = 0; i < (uint32_t)data; ++i) {
 		printf("-------");
 	}
 	printf("Timer[%d] -: %p\n", id, data);
@@ -55,7 +55,7 @@ void test_timers(void) {
 }
 
 void test_exponential(void) {
-	void *data = 5;
+	void *data = (void *)5;
 	uint32_t delay = 1000;
 	printf("TESTING exponential\n");
 

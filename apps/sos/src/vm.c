@@ -144,7 +144,9 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 	return 0;
 }
 
-int vm_missingpage(struct page_directory* vspace, vaddr_t address) {
+int vm_missingpage(struct vspace* vspace, vaddr_t address) {
+	printf("VM MISSING PAGE CALLED\n");
+
 	// TODO
 	return 0;
 }

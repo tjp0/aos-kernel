@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define verbose 2
+#include <sys/debug.h>
+
 static int compare_nodes(void* data1, void* data2);
 static int print_node(void* data);
 /* malloc the thing and get things set up*/
@@ -15,7 +18,7 @@ int init_region_list(region_list** reg_list) {
 	*reg_list = (region_list*)malloc(sizeof(struct _region_list));
 
 	if (!*reg_list) {
-		printf("MALLOC FAILED\n");
+		dprintf(0, "MALLOC FAILED\n");
 		return REGION_FAIL;
 	}
 	(*reg_list)->regions = (list_t*)malloc(sizeof(list_t));
@@ -25,7 +28,7 @@ int init_region_list(region_list** reg_list) {
 }
 
 /* malloc the thing and get things set up*/
-region_node* make_region_node(void* addr, unsigned int size,
+region_node* make_region_node(vaddr_t addr, unsigned int size,
 							  unsigned int perm) {
 	region_node* region = (region_node*)malloc(sizeof(struct _region_node));
 
@@ -37,7 +40,7 @@ region_node* make_region_node(void* addr, unsigned int size,
 }
 
 /* Returns 0 on success */
-int add_region(region_list* reg_list, void* addr, unsigned int size,
+int add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 			   unsigned int perm) {
 	assert(IS_ALIGNED_4K((unsigned long int)addr));
 	// If it overlaps then that's not ok
@@ -52,7 +55,8 @@ int add_region(region_list* reg_list, void* addr, unsigned int size,
 }
 
 /* Returns 0 if it's ok, -1 if that region is occupied */
-int does_region_overlap(region_list* reg_list, void* addr, unsigned int size) {
+int does_region_overlap(region_list* reg_list, vaddr_t addr,
+						unsigned int size) {
 	// test all the regions
 	struct list_node* n = reg_list->regions->head;
 	while (n != NULL) {
@@ -70,7 +74,7 @@ int does_region_overlap(region_list* reg_list, void* addr, unsigned int size) {
  * Returns -1 if that region couldn't be found
  *			0 if it worked
  * * * * * * * * * * * * * * * * * * * * * * * */
-int remove_region(region_list* reg_list, void* addr) {
+int remove_region(region_list* reg_list, vaddr_t addr) {
 	// find the node first... grr not efficient
 	struct list_node* n = reg_list->regions->head;
 	while (n != NULL) {
@@ -86,13 +90,13 @@ int remove_region(region_list* reg_list, void* addr) {
 }
 
 static int compare_nodes(void* data1, void* data2) {
-	void* addr1 = ((region_node*)(data1))->addr;
-	void* addr2 = ((region_node*)(data2))->addr;
+	vaddr_t addr1 = ((region_node*)(data1))->addr;
+	vaddr_t addr2 = ((region_node*)(data2))->addr;
 	int val = (addr1 != addr2);
 	return val;
 }
 
-region_node* find_region(region_list* reg_list, void* addr) {
+region_node* find_region(region_list* reg_list, vaddr_t addr) {
 	struct list_node* n = reg_list->regions->head;
 	while (n != NULL) {
 		region_node* node = n->data;
@@ -112,7 +116,7 @@ void print_list(region_list* reg_list) {
 static int print_node(void* data) {
 	region_node* node = (region_node*)data;
 	printf("node && %p\n", data);
-	printf("addr %p\n", node->addr);
-	printf("size %d\n", node->size);
+	printf("addr %p\n", (void*)node->addr);
+	printf("size %lu\n", node->size);
 	return 0;
 }

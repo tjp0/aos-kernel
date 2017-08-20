@@ -1,7 +1,11 @@
 #pragma once
 #include <cspace/cspace.h>
+#include <region_manager.h>
 #include <sel4/sel4.h>
-#include <vm.h>
+struct vspace {
+	struct page_directory* pagetable;
+	region_list* regions;
+};
 
 struct process {
 	seL4_Word tcb_addr;
@@ -10,6 +14,7 @@ struct process {
 	seL4_Word ipc_buffer_addr;
 	seL4_CPtr ipc_buffer_cap;
 	cspace_t* croot;
-
-	struct page_directory* pagetable;
+	struct vspace vspace;
 };
+
+struct process* process_create(char* app_name, seL4_CPtr fault_ep);
