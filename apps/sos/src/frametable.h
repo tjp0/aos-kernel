@@ -9,6 +9,9 @@ struct frame {
 };
 
 struct frame* get_frame(void* addr);
+
+void* frame_getvaddr(struct frame* frame);
+
 void* frame_alloc(void);
 
 seL4_Word ft_early_initialize(const seL4_BootInfo* bootinfo);

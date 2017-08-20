@@ -6,32 +6,14 @@
 #include <string.h>
 #include <ut_manager/ut.h>
 #include <utils/page.h>
+#include <vm.h>
 
 #define verbose 2
 #include <sys/debug.h>
 #include <sys/panic.h>
 
-#define PAGE_SIZE PAGE_SIZE_4K
 #define PTES_PER_TABLE 256
 #define PTS_PER_DIRECTORY 4096
-
-typedef uint32_t vaddr_t;
-
-struct page_table_entry {
-	uint8_t permissions;
-	vaddr_t address;
-	struct frame* frame;
-};
-
-struct page_table {
-	seL4_ARM_PageTable seL4_pt;
-	struct page_table_entry* ptes[PTES_PER_TABLE];
-};
-
-struct page_directory {
-	seL4_ARM_PageDirectory seL4_pd;
-	struct page_table* pts[PTS_PER_DIRECTORY];
-};
 
 static inline uint32_t vaddr_to_ptsoffset(vaddr_t address) {
 	return ((address >> 20) & 0x000000FF);
@@ -99,12 +81,13 @@ static struct page_table_entry* create_pte(vaddr_t address,
 	return pte;
 }
 
-struct page_directory* pd_create(void) {
+struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd) {
 	struct page_directory* pd = malloc(sizeof(struct page_directory));
 	if (!pd) {
 		return NULL;
 	}
 	pd = memset(pd, 0, sizeof(struct page_directory));
+	pd->seL4_pd = seL4_pd;
 	return pd;
 };
 
@@ -143,8 +126,25 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 
 	assert(pt != NULL);
 	assert(pd->seL4_pd != 0);
+	seL4_CPtr vcap;
 
-	int err = seL4_ARM_Page_Map(page->frame->cap, pd->seL4_pd, page->address,
-								seL4_AllRights, 0);
-	return err;
+	vcap = cspace_copy_cap(cur_cspace, cur_cspace, page->frame->cap,
+						   seL4_AllRights);
+	int err;
+	if (vcap == 0) {
+		err = 1;
+		return err;
+	}
+	err = seL4_ARM_Page_Map(page->frame->cap, pd->seL4_pd, page->address,
+							seL4_AllRights, 0);
+
+	if (err) {
+		return 1;
+	}
+	return 0;
+}
+
+int vm_missingpage(struct page_directory* vspace, vaddr_t address) {
+	// TODO
+	return 0;
 }

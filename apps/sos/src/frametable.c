@@ -12,7 +12,7 @@
 
 #define PADDR_TO_FRAME_INDEX(x) (((unsigned int)x) >> seL4_PageBits)
 #define VADDR_TO_FRAME_INDEX(x) (PADDR_TO_FRAME_INDEX(x - FRAME_VSTART))
-#define FRAME_INDEX_TO_VADDR(x) (x << seL4_PageBits);
+#define FRAME_INDEX_TO_VADDR(x) ((x << seL4_PageBits) + FRAME_VSTART);
 
 #define FRAME_CACHE_SIZE 30
 #define FRAME_CACHE_HIGH_WATER 20
@@ -123,6 +123,10 @@ void* frame_alloc(void) {
 
 struct frame* get_frame(void* addr) {
 	return &frame_table[VADDR_TO_FRAME_INDEX(addr)];
+}
+
+void* frame_getvaddr(struct frame* frame) {
+	return (void*)FRAME_INDEX_TO_VADDR(frame_to_index(frame));
 }
 
 void frame_free(void* vaddr) {
