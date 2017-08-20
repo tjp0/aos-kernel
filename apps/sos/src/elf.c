@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "elf.h"
+#include "region_manager.h"
 
 #include <mapping.h>
 #include <ut_manager/ut.h>
@@ -54,7 +55,8 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
 static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as, char *src,
 									unsigned long segment_size,
 									unsigned long file_size, unsigned long dst,
-									unsigned long permissions) {
+									unsigned long permissions,
+									region_list *reg_list) {
 	/* Overview of ELF segment loading
 
 	   dst: destination base virtual address of the segment being loaded
@@ -77,6 +79,17 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as, char *src,
 	   zero-filling a newly allocated frame.
 
 	*/
+
+	//********* Begin Jordan's crap
+
+	// initialise the region list
+	// init_region_list(&reg_list);
+
+	int res;
+	res = add_region(reg_list, dst, segment_size, permissions);
+	print_list(reg_list);
+	assert(res == REGION_GOOD);
+	//********** End Jordan's crap
 
 	assert(file_size <= segment_size);
 
