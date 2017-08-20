@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define verbose 2
+#define verbose 0
 #include <sys/debug.h>
 
 static int compare_nodes(void* data1, void* data2);
@@ -30,7 +30,10 @@ int init_region_list(region_list** reg_list) {
 /* malloc the thing and get things set up*/
 region_node* make_region_node(vaddr_t addr, unsigned int size,
 							  unsigned int perm) {
-	region_node* region = (region_node*)malloc(sizeof(struct _region_node));
+	region_node* region = (region_node*)malloc(sizeof(region_node));
+	if (region == NULL) {
+		return NULL;
+	}
 
 	region->addr = addr;
 	region->size = size;
@@ -48,9 +51,15 @@ int add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 		return REGION_FAIL;
 	}
 	// Make a new region
+	dprintf(0, "Region does not overlap\n");
 	region_node* new_region = make_region_node(addr, size, perm);
+	if (new_region == NULL) {
+		return REGION_FAIL;
+	}
+	dprintf(0, "New region node made\n");
 	// append it to the list
 	list_append(reg_list->regions, new_region);
+	dprintf(0, "List appended\n");
 	return REGION_GOOD;
 }
 
@@ -60,6 +69,7 @@ int does_region_overlap(region_list* reg_list, vaddr_t addr,
 	// test all the regions
 	struct list_node* n = reg_list->regions->head;
 	while (n != NULL) {
+		dprintf(0, "LOOP\n");
 		region_node* node = n->data;
 		// x1 <= y2 AND y1 <= x2  --> overlap
 		if (addr <= node->addr + node->size && node->addr <= addr + size) {

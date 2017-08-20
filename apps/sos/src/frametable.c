@@ -1,11 +1,11 @@
 #include <assert.h>
 #include <cspace/cspace.h>
+#include <frametable.h>
 #include <mapping.h>
 #include <sel4/sel4.h>
 #include <stdlib.h>
 #include <ut_manager/ut.h>
 #include <vmem_layout.h>
-
 #define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
@@ -24,16 +24,7 @@ uint32_t frame_count = 0;
 seL4_Word ft_size;
 seL4_Word ft_numframes = 0;
 
-enum frame_status { FRAME_INUSE, FRAME_UNTYPED, FRAME_FREE };
-
-struct frame {
-	enum frame_status status;
-	seL4_ARM_Page cap;
-};
-
-inline int frame_to_index(struct frame* frame) {
-	return ((frame - frame_table) / sizeof(struct frame));
-}
+inline int frame_to_index(struct frame* frame) { return frame - frame_table; }
 
 uint32_t frame_cache_tail = 0;
 void* frame_cache[FRAME_CACHE_SIZE];
@@ -122,10 +113,13 @@ void* frame_alloc(void) {
 }
 
 struct frame* get_frame(void* addr) {
-	return &frame_table[VADDR_TO_FRAME_INDEX(addr)];
+	struct frame* f = &frame_table[VADDR_TO_FRAME_INDEX(addr)];
+	assert(addr == frame_getvaddr(f));
+	return f;
 }
 
 void* frame_getvaddr(struct frame* frame) {
+	assert(&frame_table[frame_to_index(frame)] == frame);
 	return (void*)FRAME_INDEX_TO_VADDR(frame_to_index(frame));
 }
 

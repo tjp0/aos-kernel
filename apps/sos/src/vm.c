@@ -8,24 +8,30 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 2
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
 #define PTES_PER_TABLE 256
 #define PTS_PER_DIRECTORY 4096
 
+int pd_map_page(struct page_directory* pd, struct page_table_entry* page);
+
 static inline uint32_t vaddr_to_ptsoffset(vaddr_t address) {
 	return ((address >> 20) & 0x000000FF);
 }
 
 static inline uint32_t vaddr_to_pteoffset(vaddr_t address) {
-	return (address >> 24);
+	return (address >> 12);
 }
 
 static struct page_table* create_pt(struct page_directory* pd,
 									vaddr_t address) {
 	struct page_table* pt = malloc(sizeof(struct page_table));
+	if (pt == NULL) {
+		goto fail3;
+	}
+
 	memset(pt, 0, sizeof(struct page_table));
 
 	seL4_Word pt_addr;
@@ -65,8 +71,10 @@ fail3:
 
 static struct page_table_entry* create_pte(vaddr_t address,
 										   uint8_t permissions) {
+	dprintf(2, "Mallocing\n");
 	struct page_table_entry* pte = malloc(sizeof(struct page_table_entry));
-	memset(pte, 0, sizeof(struct page_table));
+	dprintf(2, "Malloced\n");
+	memset(pte, 0, sizeof(struct page_table_entry));
 	pte->address = address;
 	pte->permissions = permissions;
 
@@ -93,19 +101,25 @@ struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd) {
 
 struct page_table_entry* pd_getpage(struct page_directory* pd,
 									vaddr_t address) {
+	assert(pd != NULL);
 	address = PAGE_ALIGN_4K(address);
+	dprintf(2, "Finding page at: %p\n", (void*)address);
+	dprintf(2, "Find page 1st index: %u\n", vaddr_to_ptsoffset(address));
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(address)];
 	if (pt == NULL) {
 		return NULL;
 	}
+	dprintf(2, "Find page 2nd index: %u\n", vaddr_to_pteoffset(address));
 	struct page_table_entry* pte = pt->ptes[vaddr_to_pteoffset(address)];
 	return pte;
 }
 
 struct page_table_entry* pd_createpage(struct page_directory* pd,
 									   vaddr_t address, uint8_t permissions) {
+	assert(pd != NULL);
 	address = PAGE_ALIGN_4K(address);
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(address)];
+	dprintf(2, "New page 1st index: %u\n", vaddr_to_ptsoffset(address));
 	if (pt == NULL) {
 		pt = create_pt(pd, address);
 		if (pt == NULL) {
@@ -114,9 +128,18 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 		pd->pts[vaddr_to_ptsoffset(address)] = pt;
 	}
 	struct page_table_entry* pte = pt->ptes[vaddr_to_pteoffset(address)];
-
+	dprintf(2, "New page 2nd index: %u\n", vaddr_to_pteoffset(address));
 	if (pte == NULL) {
+		dprintf(1, "Creating new page table entry\n");
 		pte = create_pte(address, permissions);
+
+		if (pte == NULL) {
+			return NULL;
+		}
+		dprintf(2, "Mapping page in\n");
+		pd_map_page(pd, pte);
+		pt->ptes[vaddr_to_pteoffset(address)] = pte;
+		dprintf(2, "New page created\n");
 	}
 	return pte;
 }
@@ -132,21 +155,37 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 						   seL4_AllRights);
 	int err;
 	if (vcap == 0) {
-		err = 1;
-		return err;
+		return VM_FAIL;
 	}
 	err = seL4_ARM_Page_Map(page->frame->cap, pd->seL4_pd, page->address,
 							seL4_AllRights, 0);
 
 	if (err) {
-		return 1;
+		return VM_FAIL;
 	}
-	return 0;
+	return VM_OKAY;
 }
 
 int vm_missingpage(struct vspace* vspace, vaddr_t address) {
-	printf("VM MISSING PAGE CALLED\n");
+	printf("VM MISSING PAGE CALLED AT ADDRESS %p\n", (void*)address);
+	address = PAGE_ALIGN_4K(address);
+	region_node* region = find_region(vspace->regions, address);
 
-	// TODO
-	return 0;
+	if (region == NULL) {
+		dprintf(0, "Failed to find region for missing page\n");
+		return VM_NOREGION;
+	}
+
+	struct page_table_entry* pte;
+
+	if ((pte = pd_createpage(vspace->pagetable, address, region->perm)) ==
+		NULL) {
+		return VM_FAIL;
+	}
+
+	dprintf(0, "PTE is %p, getpage is %p\n", pte,
+			pd_getpage(vspace->pagetable, address));
+
+	assert(pd_getpage(vspace->pagetable, address) == pte);
+	return VM_OKAY;
 }

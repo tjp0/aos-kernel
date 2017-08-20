@@ -8,6 +8,10 @@
 #define PTES_PER_TABLE 256
 #define PTS_PER_DIRECTORY 4096
 
+#define VM_NOREGION -1
+#define VM_FAIL -2
+#define VM_OKAY 0
+
 struct page_table_entry {
 	uint8_t permissions;
 	vaddr_t address;

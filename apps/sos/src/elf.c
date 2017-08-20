@@ -26,7 +26,6 @@
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
-extern seL4_ARM_PageDirectory dest_as;
 
 /*
  * Convert ELF permissions into seL4 permissions.
@@ -74,21 +73,25 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 
 	dst = PAGE_ALIGN_4K(dst);
 	int res;
+	dprintf(0, "Creating region at %p to %p\n", (void *)dst,
+			(void *)dst + segment_size);
 	res = add_region(vspace->regions, dst, segment_size, permissions);
 	dprintf(0, "Region at %p to %p created\n", (void *)dst,
 			(void *)dst + segment_size);
 	assert(res == REGION_GOOD);
 	assert(file_size <= segment_size);
 
-	copy_sos2vspace(src, dst, vspace, file_size);
+	if (copy_sos2vspace(src, dst, vspace, file_size, 1) < 0) {
+		return -1;
+	}
+	dprintf(0, "Initial data copied to region at %p\n", dst);
 	return 0;
 }
 
 int elf_load(struct process *process, char *elf_file) {
 	int num_headers;
-	int err;
+	int err = 0;
 	int i;
-
 	/* Ensure that the ELF file looks sane. */
 	if (elf_checkFile(elf_file)) {
 		return seL4_InvalidArgument;
@@ -110,8 +113,8 @@ int elf_load(struct process *process, char *elf_file) {
 		flags = elf_getProgramHeaderFlags(elf_file, i);
 
 		/* Copy it across into the vspace. */
-		dprintf(1, " * Loading segment %08p-->%08p\n", (void *)vaddr,
-				(void *)(vaddr + segment_size));
+		dprintf(0, " * Loading segment %08x-->%08x\n", (int)vaddr,
+				(int)(vaddr + segment_size));
 		err = load_segment_into_vspace(
 			&process->vspace, source_addr, segment_size, file_size, vaddr,
 			get_sel4_rights_from_elf(flags) & seL4_AllRights);
