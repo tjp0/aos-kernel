@@ -4,10 +4,10 @@
 #include <mapping.h>
 #include <sel4/sel4.h>
 #include <stdlib.h>
-#include <ut_manager/ut.h>
-#include <vmem_layout.h>
 #include <string.h>
+#include <ut_manager/ut.h>
 #include <utils/page.h>
+#include <vmem_layout.h>
 #define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
@@ -111,7 +111,7 @@ void* frame_alloc(void) {
 			frame_cache_tail);
 	frame_table[VADDR_TO_FRAME_INDEX(new_frame)].status = FRAME_INUSE;
 
-	memset(new_frame,0,PAGE_SIZE_4K);
+	memset(new_frame, 0, PAGE_SIZE_4K);
 	return new_frame;
 }
 

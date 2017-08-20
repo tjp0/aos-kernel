@@ -136,7 +136,7 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 			return NULL;
 		}
 		dprintf(2, "Mapping page in\n");
-		if(pd_map_page(pd, pte) < 0) {
+		if (pd_map_page(pd, pte) < 0) {
 			free_pte(pte);
 			return NULL;
 		}
@@ -159,11 +159,11 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 	if (vcap == 0) {
 		return VM_FAIL;
 	}
-	err = seL4_ARM_Page_Map(vcap, pd->seL4_pd, page->address,
-							seL4_AllRights, 0);
+	err =
+		seL4_ARM_Page_Map(vcap, pd->seL4_pd, page->address, seL4_AllRights, 0);
 
 	if (err) {
-		dprintf(0,"Failed to map page in, err code %d\n",err);
+		dprintf(0, "Failed to map page in, err code %d\n", err);
 		return VM_FAIL;
 	}
 	return VM_OKAY;
