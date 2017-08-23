@@ -16,6 +16,7 @@ struct page_table_entry {
 	uint8_t permissions;
 	vaddr_t address;
 	struct frame* frame;
+	seL4_ARM_Page cap;
 };
 
 struct page_table {
@@ -33,3 +34,5 @@ struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd);
 int vm_missingpage(struct vspace* vspace, vaddr_t address);
 
 struct page_table_entry* pd_getpage(struct page_directory* pd, vaddr_t address);
+
+struct page_table_entry* sos_map_page(struct page_directory* pd, vaddr_t address, uint8_t permissions);

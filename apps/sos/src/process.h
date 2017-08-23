@@ -5,6 +5,9 @@
 struct vspace {
 	struct page_directory* pagetable;
 	region_list* regions;
+
+	region_node* stack;
+	region_node* heap;
 };
 
 struct process {

@@ -73,13 +73,13 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 
 	unsigned long dst_region = PAGE_ALIGN_4K(dst);
 	segment_size = PAGE_ALIGN_4K(segment_size+PAGE_SIZE_4K);
-	int res;
 	dprintf(0, "Creating region at %p to %p\n", (void *)dst_region,
 			(void *)dst_region + segment_size);
-	res = add_region(vspace->regions, dst_region, segment_size, permissions);
+	region_node* node = add_region(vspace->regions, dst_region, segment_size, permissions);
 	dprintf(0, "Region at %p to %p created\n", (void *)dst_region,
 			(void *)dst_region + segment_size);
-	assert(res == REGION_GOOD);
+
+	assert(node != NULL);
 	assert(file_size <= segment_size);
 
 	if (copy_sos2vspace(src, dst, vspace, file_size, 1) < 0) {

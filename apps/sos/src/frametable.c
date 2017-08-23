@@ -20,6 +20,12 @@
 #define FRAME_CACHE_HIGH_WATER 20
 #define FRAME_RESERVED 120
 
+//TODO: Fix memory leak
+// Fix memory reserved
+// fix to use findmem
+// Fix memory free
+// Fix vmem layout
+
 struct frame* frame_table = NULL;
 
 uint32_t frame_count = 0;

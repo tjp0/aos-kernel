@@ -8,18 +8,18 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 1
+#define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
 
 int pd_map_page(struct page_directory* pd, struct page_table_entry* page);
 
 static inline uint32_t vaddr_to_ptsoffset(vaddr_t address) {
-	return ((address >> 20) & 0x000000FF);
+	return ((address >> 20) & 0x00000FFF);
 }
 
 static inline uint32_t vaddr_to_pteoffset(vaddr_t address) {
-	return (address >> 12);
+	return ((address >> 12) & 0x000000FF);
 }
 
 static struct page_table* create_pt(struct page_directory* pd,
@@ -50,6 +50,7 @@ static struct page_table* create_pt(struct page_directory* pd,
 	err = seL4_ARM_PageTable_Map(pt_cap, pd->seL4_pd, address,
 								 seL4_ARM_Default_VMAttributes);
 	if (err) {
+		dprintf(2,"Failed creating page table, fail1, addr=0x%x, err=%u\n, reg=%d",address,err,seL4_GetMR(0));
 		goto fail1;
 	}
 
@@ -63,6 +64,7 @@ fail1:
 fail2:
 	ut_free(pt_addr, seL4_PageTableBits);
 fail3:
+	dprintf(2,"Failed creating page table, fail2/3\n");
 	return NULL;
 }
 
@@ -76,6 +78,7 @@ static struct page_table_entry* create_pte(vaddr_t address,
 	memset(pte, 0, sizeof(struct page_table_entry));
 	pte->address = address;
 	pte->permissions = permissions;
+	pte->cap = 0;
 
 	void* new_frame = frame_alloc();
 	if (new_frame == NULL) {
@@ -117,6 +120,7 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 									   vaddr_t address, uint8_t permissions) {
 	assert(pd != NULL);
 	address = PAGE_ALIGN_4K(address);
+	dprintf(2, "Creating page at addr: 0x%x\n",address);
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(address)];
 	dprintf(2, "New page 1st index: %u\n", vaddr_to_ptsoffset(address));
 	if (pt == NULL) {
@@ -126,8 +130,8 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 		}
 		pd->pts[vaddr_to_ptsoffset(address)] = pt;
 	}
-	struct page_table_entry* pte = pt->ptes[vaddr_to_pteoffset(address)];
 	dprintf(2, "New page 2nd index: %u\n", vaddr_to_pteoffset(address));
+	struct page_table_entry* pte = pt->ptes[vaddr_to_pteoffset(address)];
 	if (pte == NULL) {
 		dprintf(1, "Creating new page table entry\n");
 		pte = create_pte(address, permissions);
@@ -144,6 +148,10 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 		dprintf(2, "New page created\n");
 	}
 	return pte;
+}
+
+struct page_table_entry* sos_map_page(struct page_directory* pd, vaddr_t address, uint8_t permissions) {
+	return pd_createpage(pd, address, permissions);
 }
 
 int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
@@ -164,8 +172,10 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 
 	if (err) {
 		dprintf(0, "Failed to map page in, err code %d\n", err);
+		cspace_delete_cap(cur_cspace, vcap);
 		return VM_FAIL;
 	}
+	page->cap = vcap;
 	return VM_OKAY;
 }
 

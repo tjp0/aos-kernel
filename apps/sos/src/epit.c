@@ -164,6 +164,8 @@ int timer_interrupt_epit2(void) {
 }
 
 timestamp_t time_stamp(void) {
+	// TODO: FIX RACE CONDITION
+	// USE OVERFLOW REGISTER
 	time_stamp_wrap();
 	return ((int64_t)ts_upper * UINT32_MAX + (uint64_t)ts_getlower()) /
 		   TICKS_PER_MICROSECOND;
