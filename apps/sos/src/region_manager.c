@@ -46,6 +46,7 @@ region_node* make_region_node(vaddr_t addr, unsigned int size,
 int add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 			   unsigned int perm) {
 	assert(IS_ALIGNED_4K((unsigned long int)addr));
+	assert(IS_ALIGNED_4K(size));
 	// If it overlaps then that's not ok
 	if (does_region_overlap(reg_list, addr, size) == REGION_FAIL) {
 		return REGION_FAIL;

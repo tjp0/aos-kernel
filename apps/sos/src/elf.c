@@ -72,6 +72,7 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 	*/
 
 	dst = PAGE_ALIGN_4K(dst);
+	segment_size = PAGE_ALIGN_4K(segment_size+PAGE_SIZE_4K);
 	int res;
 	dprintf(0, "Creating region at %p to %p\n", (void *)dst,
 			(void *)dst + segment_size);

@@ -5,7 +5,7 @@
 #include <string.h>
 #include <utils/page.h>
 #include <vm.h>
-#define verbose 0
+#define verbose 5
 #include <sys/debug.h>
 
 /* This function is called when the copy happens inside a single page */
@@ -46,7 +46,7 @@ int64_t copy_sos2vspace(void* src, vaddr_t dest_vaddr, struct vspace* vspace,
 						int64_t len, uint32_t flags) {
 	int64_t start_len = len;
 	/* Start by copying the part in the middle of the page */
-	vaddr_t nearest_page = PAGE_ALIGN_4K(dest_vaddr + PAGE_SIZE);
+	vaddr_t nearest_page = PAGE_ALIGN_4K(dest_vaddr + PAGE_SIZE - 1);
 	vaddr_t alignbytes = nearest_page - dest_vaddr;
 	int copy_len = alignbytes;
 	if (alignbytes > len) {
