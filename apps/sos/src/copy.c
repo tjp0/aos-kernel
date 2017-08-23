@@ -28,8 +28,9 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 			return -1;
 		}
 	}
+
 	assert(pte->frame != NULL);
-	void* dst = frame_getvaddr(pte->frame);
+	void* dst = frame_getvaddr(pte->frame) + (dest_vaddr - PAGE_ALIGN_4K(dest_vaddr));
 
 	dprintf(0, "Copying from %p in KS to %p in US (%p in KS)\n", src,
 			(void*)dest_vaddr, dst);

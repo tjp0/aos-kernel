@@ -71,14 +71,14 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 
 	*/
 
-	dst = PAGE_ALIGN_4K(dst);
+	unsigned long dst_region = PAGE_ALIGN_4K(dst);
 	segment_size = PAGE_ALIGN_4K(segment_size+PAGE_SIZE_4K);
 	int res;
-	dprintf(0, "Creating region at %p to %p\n", (void *)dst,
-			(void *)dst + segment_size);
-	res = add_region(vspace->regions, dst, segment_size, permissions);
-	dprintf(0, "Region at %p to %p created\n", (void *)dst,
-			(void *)dst + segment_size);
+	dprintf(0, "Creating region at %p to %p\n", (void *)dst_region,
+			(void *)dst_region + segment_size);
+	res = add_region(vspace->regions, dst_region, segment_size, permissions);
+	dprintf(0, "Region at %p to %p created\n", (void *)dst_region,
+			(void *)dst_region + segment_size);
 	assert(res == REGION_GOOD);
 	assert(file_size <= segment_size);
 
