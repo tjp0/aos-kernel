@@ -257,7 +257,8 @@ void sos_handle_vmfault(struct process* process) {
 	} else {
 		print_fault(fault);
 		regions_print(process->vspace.regions);
-		panic("Unable to handle fault");
+		printf("Unable to handle process fault\n");
+		process_kill(process);
 	}
 
 	cspace_free_slot(cur_cspace, reply_cap);
