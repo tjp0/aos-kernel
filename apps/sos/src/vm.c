@@ -242,7 +242,6 @@ void sos_handle_vmfault(struct process* process) {
 	seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
 	assert(reply_cap != CSPACE_NULL);
 
-
 	/* If the page doesn't exist in the pagetable */
 	if(fault_isaccessfault(fault.status)) {
 		int err = vm_missingpage(&process->vspace, fault.vaddr);

@@ -345,9 +345,6 @@ int main(void) {
 
 	global_serial = serial_init();
 
-	char initialization_string[] = "Serial connection initialized";
-	serial_send(global_serial, initialization_string, sizeof(initialization_string));
-
 	start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1),
 				badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
 
