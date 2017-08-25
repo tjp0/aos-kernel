@@ -7,6 +7,7 @@
 #include <ut_manager/ut.h>
 #include <utils/page.h>
 #include <vm.h>
+#include <fault.h>
 
 #define verbose 5
 #include <sys/debug.h>
@@ -184,6 +185,15 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	address = PAGE_ALIGN_4K(address);
 	region_node* region = find_region(vspace->regions, address);
 
+	if(region == NULL && in_stack_region(vspace->regions->stack, address))
+	{
+		int err = expand_left(vspace->regions->stack, address);
+		if(err != REGION_GOOD) {
+			return VM_FAIL;
+		}
+		region = vspace->regions->stack;
+	}
+
 	if (region == NULL) {
 		dprintf(0, "Failed to find region for missing page\n");
 		return VM_NOREGION;
@@ -201,4 +211,50 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 
 	assert(pd_getpage(vspace->pagetable, address) == pte);
 	return VM_OKAY;
+}
+
+/* Could use a lookup table */
+char* fault_getprintable(uint32_t reg) {
+
+	if(fault_ispermissionfault(reg)) {
+		return fault_iswritefault(reg) ? "permission fault (writing)" : "permission fault (reading)";
+	} else if(fault_isaccessfault(reg)) {
+		return "access fault";
+	} else if(fault_isalignmentfault(reg)) {
+		return "alignment fault";
+	}
+	return "unknown fault";
+}
+
+void sos_handle_vmfault(struct process* process) {
+
+	assert(process != NULL);
+
+	/* Page fault */
+	vaddr_t pc = seL4_GetMR(0);
+	vaddr_t vaddr = seL4_GetMR(1);
+	int is_instructionfault = seL4_GetMR(2);
+	uint32_t status = seL4_GetMR(3);
+	seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
+	assert(reply_cap != CSPACE_NULL);
+
+	dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, status=0x%x, %s %s\n",
+	vaddr, pc, status, is_instructionfault ? "Instruction" : "Data",
+	fault_getprintable(status));
+
+	/* If the page doesn't exist in the pagetable */
+	if(fault_isaccessfault(status)) {
+		int err = vm_missingpage(&process->vspace, vaddr);
+		if(err != VM_OKAY) {
+			dprintf(0, "Invalid memory access for process");
+			process_kill(process);
+		}
+		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
+		seL4_Send(reply_cap, reply);
+
+	} else {
+		panic("Unable to handle fault");
+	}
+
+	cspace_free_slot(cur_cspace, reply_cap);
 }

@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <typedefs.h>
 
+/* 
+ *	Virtual Memory System
+*/
+
 #define PAGE_SIZE PAGE_SIZE_4K
 #define PTES_PER_TABLE 256
 #define PTS_PER_DIRECTORY 4096
@@ -36,3 +40,5 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address);
 struct page_table_entry* pd_getpage(struct page_directory* pd, vaddr_t address);
 
 struct page_table_entry* sos_map_page(struct page_directory* pd, vaddr_t address, uint8_t permissions);
+
+void sos_handle_vmfault(struct process* process);

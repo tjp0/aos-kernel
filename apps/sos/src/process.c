@@ -138,14 +138,24 @@ struct process* process_create(char* app_name, seL4_CPtr fault_ep) {
 
 
 	region_node* stack_region = process->vspace.regions->stack;
+
+	/* Find a place to put the heap */
+
+	
+
 	/* Start the new process */
 	memset(&context, 0, sizeof(context));
 	context.pc = elf_getEntryPoint(elf_base);
-	context.sp = stack_region->vaddr + stack_region->size - 1;
+	/* The stack pointer must be aligned for data access */
+	context.sp = ALIGN_DOWN(stack_region->vaddr + stack_region->size - 1, sizeof(seL4_Word));
 
 	dprintf(0, "ELF ENTRY POINT IS %x\n", context.pc);
 	dprintf(0, "*** PROCESS STARTING ***\n");
 	seL4_TCB_WriteRegisters(process->tcb_cap, 1, 0, 2, &context);
 
 	return process;
+}
+
+void process_kill(struct process* process) {
+	panic("Killing processes not implemented yet");
 }

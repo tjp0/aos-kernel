@@ -47,3 +47,11 @@ int remove_region(region_list* reg_list, vaddr_t addr);
 region_node* find_region(region_list* reg_list, vaddr_t addr);
 
 void print_list(region_list* reg_list);
+
+//Probably to expand the stack
+int expand_left(region_node* node, vaddr_t address);
+
+//Probably to expand the heap
+int expand_right(region_node* node, uint32_t size);
+
+int in_stack_region(region_node* node, vaddr_t vaddr);

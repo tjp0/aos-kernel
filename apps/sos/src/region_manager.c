@@ -136,20 +136,20 @@ region_node* find_region(region_list* list, vaddr_t addr)
 
         start = start->next;
     }
-    return start;
+    return NULL;
 }
 
 //Probably to expand the stack
-int expand_left(region_node* node, uint32_t size) {
-	assert(IS_ALIGNED_4K(size));
+int expand_left(region_node* node, vaddr_t address) {
+	address = PAGE_ALIGN_4K(address);
 
 	region_node* neighbor = node->prev;
 
-	if(node->vaddr - size < neighbor->vaddr+neighbor->size + REGION_SAFETY) {
+	if(address < neighbor->vaddr+neighbor->size + REGION_SAFETY) {
 		return REGION_FAIL;
 	}
 
-	node->vaddr -= size;
+	node->vaddr -= address;
 	return REGION_GOOD;
 }
 
@@ -167,5 +167,10 @@ int expand_right(region_node* node, uint32_t size) {
 }
 
 int in_stack_region(region_node* node, vaddr_t vaddr) {
-	return (node->vaddr - vaddr < PAGE_SIZE_4K);
+	return (vaddr > node->prev->vaddr + node->prev->size + PAGE_SIZE_4K);
+}
+
+/* Call this after the elf has been loaded to place the heap effectively */
+void create_heap(region_list* region_list) {
+	
 }

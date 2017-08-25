@@ -24,6 +24,7 @@
 #include <clock/clock.h>
 #include "elf.h"
 #include "network.h"
+#include <vm.h>
 
 #include "mapping.h"
 #include "ut_manager/ut.h"
@@ -33,12 +34,14 @@
 #include <frametable.h>
 #include <process.h>
 #include <region_manager.h>
+#include <copy.h>
+#include "test_timer.h"
+#include <utils/arith.h>
+#include <syscall.h>
 
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
-
-#include "test_timer.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -89,25 +92,26 @@ void handle_syscall(seL4_Word badge, int num_args) {
 	/* Save the caller */
 	reply_cap = cspace_save_reply_cap(cur_cspace);
 	assert(reply_cap != CSPACE_NULL);
-
 	/* Process system call */
 	switch (syscall_number) {
-		case SOS_SYSCALL0:
-			dprintf(0, "syscall: thread made syscall 0!\n");
-
-			seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-			seL4_SetMR(0, 0);
-			seL4_Send(reply_cap, reply);
-
-			break;
-		case SOS_SERIALWRITE:;
+		case SOS_SYSCALL_SERIALWRITE: 
+		{
+			dprintf(0, "syscall: thread made syscall serialwrite!\n");
 			size_t length;
-			void* array;
-			if (!ipc_unpackb(&ipc, &length, &array)) {
-				break;
-			}
-			serial_send(global_serial, array, length);
+			char array[512];
+			vaddr_t ptr;
+			ipc_unpacki(&ipc, &ptr);
+			ipc_unpacki(&ipc, &length);
 
+			length = MIN(sizeof(array)-1, length);
+			copy_vspace2sos(ptr, array, &tty_test_process->vspace, length, 0);
+			array[length] = '\0';
+			dprintf(0,"Length is %u\n",length);
+			dprintf(0,"Printing string %s\n",array);
+			serial_send(global_serial, array, length);
+			seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
+			seL4_Send(reply_cap, reply); 
+		}
 			break;
 
 		default:
@@ -128,25 +132,26 @@ void syscall_loop(seL4_CPtr ep) {
 
 		message = seL4_Wait(ep, &badge);
 		label = seL4_MessageInfo_get_label(message);
+		dprintf(1, "SOS activated\n");
 		if (badge & IRQ_EP_BADGE) {
 			/* Interrupt */
 			if (badge & IRQ_BADGE_NETWORK) {
+				dprintf(1, "Network IRQ\n");
 				network_irq();
 			}
 			if (badge & IRQ_BADGE_EPIT1) {
+				dprintf(1, "Timer IRQ\n");
 				timer_interrupt_epit1();
 			}
 			if (badge & IRQ_BADGE_EPIT2) {
+				dprintf(1, "Timer IRQ\n");
 				timer_interrupt_epit2();
 			}
 
 		} else if (label == seL4_VMFault) {
-			/* Page fault */
-			dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, status=%08x %s\n",
-					seL4_GetMR(1), seL4_GetMR(0), seL4_GetMR(3),
-					seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
+			dprintf(1, "VMFAULT\n");
+			sos_handle_vmfault(tty_test_process);
 
-			assert(!"Unable to handle vm faults");
 		} else if (label == seL4_NoFault) {
 			/* System call */
 			handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
@@ -327,6 +332,9 @@ int main(void) {
 	network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 
 	global_serial = serial_init();
+
+	char initialization_string[] = "Serial connection initialized";
+	serial_send(global_serial, initialization_string, sizeof(initialization_string));
 
 	start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1),
 				badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));

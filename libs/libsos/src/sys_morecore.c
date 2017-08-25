@@ -15,7 +15,9 @@
 #include <sys/mman.h>
 #include <errno.h>
 #include <assert.h>
-
+#include <ipc.h>
+#include <syscall.h>
+#include <sos.h>
 /*
  * Statically allocated morecore area.
  *
@@ -37,17 +39,11 @@ long
 sys_brk(va_list ap)
 {
 
-    uintptr_t ret;
     uintptr_t newbrk = va_arg(ap, uintptr_t);
-
-    /*if the newbrk is 0, return the bottom of the heap*/
-    if (!newbrk) {
-        ret = morecore_base;
-    } else if (newbrk < morecore_top && newbrk > (uintptr_t)&morecore_area[0]) {
-        ret = morecore_base = newbrk;
-    } else {
-        ret = 0;
-    }
+    struct ipc_command ipc = ipc_create();
+    ipc_packi(&ipc, SOS_SYSCALL_SBRK);
+    ipc_packi(&ipc, newbrk);
+    uint32_t ret = ipc_call(&ipc, SOS_IPC_EP_CAP);
 
     return ret;
 }
@@ -67,6 +63,7 @@ sys_mmap2(va_list ap)
     (void)prot;
     (void)fd;
     (void)offset;
+    assert(!"not implemented");
     if (flags & MAP_ANONYMOUS) {
         /* Steal from the top */
         uintptr_t base = morecore_top - length;
