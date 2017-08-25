@@ -87,6 +87,13 @@ int ipc_unpackb(struct ipc_command* ipc, seL4_Word* length, void** array) {
 	return 1;
 } */
 static inline
+void ipc_send(struct ipc_command* ipc, seL4_CPtr dest) {
+	seL4_MessageInfo_t tag = seL4_MessageInfo_new(ipc->label, 0, 0, ipc->length);
+    seL4_SetTag(tag);
+    seL4_Send(dest,tag);
+}
+
+static inline
 uint32_t ipc_call(struct ipc_command* ipc, seL4_CPtr dest) {
 	seL4_MessageInfo_t tag = seL4_MessageInfo_new(ipc->label, 0, 0, ipc->length);
     seL4_SetTag(tag);

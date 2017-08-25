@@ -1,8 +1,9 @@
 #include <utils/page.h>
 #include <stdlib.h>
 #include <stdio.h>
-#define NPAGES 27
+#define NPAGES 17
 #define TEST_ADDRESS 0x20000000
+#define MALLOC_SIZE 100
 
 /* called from pt_test */
 static void
@@ -33,8 +34,16 @@ pt_test( void )
 
     printf("Mallocing\n");
     /* heap test */
-    buf2 = malloc(NPAGES * PAGE_SIZE_4K);
-    assert(buf2);
-    do_pt_test(buf2);
+    buf2 = malloc(100);
+    assert(buf2 != NULL);
+
+    for(char i=0;i<MALLOC_SIZE;++i) {
+        buf2[(int) i] = i;
+    }
+
+    for(char i=0;i<MALLOC_SIZE;++i) {
+        assert(buf2[(int) i] == i);
+    }
+
     free(buf2);
 }

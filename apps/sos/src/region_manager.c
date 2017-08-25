@@ -26,6 +26,8 @@ static int create_initial_regions(region_list* reg_list)
 	if(stack == NULL) {
 		return REGION_FAIL;
 	}
+	ipc_buffer->name = "IPC BUFFER";
+	stack->name = "STACK";
 	reg_list->ipc_buffer = ipc_buffer;
 	reg_list->stack = stack;
 
@@ -87,6 +89,7 @@ region_node* make_region_node(vaddr_t addr, unsigned int size,
 	new_node->vaddr = addr;
 	new_node->size = size;
 	new_node->perm = perm;
+	new_node->name = "ELF";
 	return new_node;
 }
 
@@ -156,21 +159,42 @@ int expand_left(region_node* node, vaddr_t address) {
 //Probably to expand the heap
 int expand_right(region_node* node, uint32_t size) {
 	assert(IS_ALIGNED_4K(size));
-
 	region_node* neighbor = node->next;
 
 	if(node->vaddr + node->size +  size > neighbor->vaddr - REGION_SAFETY) {
 		return REGION_FAIL;
 	}
-	node->size += size;
+	node->size = node->size + size;
 	return REGION_GOOD;
 }
 
 int in_stack_region(region_node* node, vaddr_t vaddr) {
-	return (vaddr > node->prev->vaddr + node->prev->size + PAGE_SIZE_4K);
+	return (vaddr > node->prev->vaddr + node->prev->size + REGION_SAFETY);
 }
 
 /* Call this after the elf has been loaded to place the heap effectively */
-void create_heap(region_list* region_list) {
+region_node* create_heap(region_list* region_list) {
+	region_node* stack = region_list->stack;
+	assert(stack != NULL);
+	region_node* prev = stack->prev;
+	assert(prev != NULL);
+
+	vaddr_t base_addr = prev->vaddr + prev->size + REGION_SAFETY;
+
+	region_node* heap = add_region(region_list, base_addr, 0, seL4_CanWrite | seL4_CanWrite);
 	
+	if(heap == NULL) {
+		return NULL;
+	}
+	region_list->heap = heap;
+	heap->name = "HEAP";
+	return heap;
+}
+
+void regions_print(region_list* regions) {
+	region_node* cur = regions->start;
+	while(cur) {
+		printf("0x%08x -> 0x%08x: perm: %08u, | %s\n", cur->vaddr, cur->vaddr+cur->size, cur->perm, cur->name);
+		cur = cur->next;
+	}
 }

@@ -12,8 +12,9 @@
 
 typedef struct _region_node {
 	vaddr_t vaddr;
-	unsigned long size;
-	unsigned long perm;
+	uint32_t size;
+	uint32_t perm;
+	char* name;
 	struct _region_node* next;
 	struct _region_node* prev;
 } region_node;
@@ -46,7 +47,7 @@ int remove_region(region_list* reg_list, vaddr_t addr);
 
 region_node* find_region(region_list* reg_list, vaddr_t addr);
 
-void print_list(region_list* reg_list);
+void regions_print(region_list* reg_list);
 
 //Probably to expand the stack
 int expand_left(region_node* node, vaddr_t address);
@@ -55,3 +56,5 @@ int expand_left(region_node* node, vaddr_t address);
 int expand_right(region_node* node, uint32_t size);
 
 int in_stack_region(region_node* node, vaddr_t vaddr);
+
+region_node* create_heap(region_list* region_list);

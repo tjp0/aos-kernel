@@ -9,7 +9,7 @@
 #include <vm.h>
 #include <fault.h>
 
-#define verbose 5
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -181,7 +181,7 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 }
 
 int vm_missingpage(struct vspace* vspace, vaddr_t address) {
-	printf("VM MISSING PAGE CALLED AT ADDRESS %p\n", (void*)address);
+	dprintf(1,"VM MISSING PAGE CALLED AT ADDRESS %p\n", (void*)address);
 	address = PAGE_ALIGN_4K(address);
 	region_node* region = find_region(vspace->regions, address);
 
@@ -206,7 +206,7 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 		return VM_FAIL;
 	}
 
-	dprintf(0, "PTE is %p, getpage is %p\n", pte,
+	dprintf(2, "PTE is %p, getpage is %p\n", pte,
 			pd_getpage(vspace->pagetable, address));
 
 	assert(pd_getpage(vspace->pagetable, address) == pte);
@@ -226,33 +226,37 @@ char* fault_getprintable(uint32_t reg) {
 	return "unknown fault";
 }
 
+void print_fault(struct fault f) {
+	printf("vm fault at 0x%08x, pc = 0x%08x, status=0x%x, %s %s\n",
+	f.vaddr, f.pc, f.status, f.ifault ? "Instruction" : "Data",
+	fault_getprintable(f.status));
+}
+
 void sos_handle_vmfault(struct process* process) {
 
 	assert(process != NULL);
 
 	/* Page fault */
-	vaddr_t pc = seL4_GetMR(0);
-	vaddr_t vaddr = seL4_GetMR(1);
-	int is_instructionfault = seL4_GetMR(2);
-	uint32_t status = seL4_GetMR(3);
+	struct fault fault = fault_struct();
+
 	seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
 	assert(reply_cap != CSPACE_NULL);
 
-	dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, status=0x%x, %s %s\n",
-	vaddr, pc, status, is_instructionfault ? "Instruction" : "Data",
-	fault_getprintable(status));
 
 	/* If the page doesn't exist in the pagetable */
-	if(fault_isaccessfault(status)) {
-		int err = vm_missingpage(&process->vspace, vaddr);
+	if(fault_isaccessfault(fault.status)) {
+		int err = vm_missingpage(&process->vspace, fault.vaddr);
 		if(err != VM_OKAY) {
 			dprintf(0, "Invalid memory access for process");
+			dprint_fault(0, fault);
 			process_kill(process);
 		}
 		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
 		seL4_Send(reply_cap, reply);
 
 	} else {
+		print_fault(fault);
+		regions_print(process->vspace.regions);
 		panic("Unable to handle fault");
 	}
 

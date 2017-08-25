@@ -18,34 +18,42 @@
 #include <ipc.h>
 #include <syscall.h>
 #include <sos.h>
-/*
- * Statically allocated morecore area.
- *
- * This is rather terrible, but is the simplest option without a
- * huge amount of infrastructure.
- */
-#define MORECORE_AREA_BYTE_SIZE 0x100000
-char morecore_area[MORECORE_AREA_BYTE_SIZE];
 
-/* Pointer to free space in the morecore area. */
-static uintptr_t morecore_base = (uintptr_t) &morecore_area;
-static uintptr_t morecore_top = (uintptr_t) &morecore_area[MORECORE_AREA_BYTE_SIZE];
+/* I accidentally wrote sbrk instead of brk */
+static long sys_sbrk_internal(uint32_t size) {
+    struct ipc_command ipc = ipc_create();
+    ipc_packi(&ipc, SOS_SYSCALL_SBRK);
+    ipc_packi(&ipc, size);
+    uint32_t ret = ipc_call(&ipc, SOS_IPC_EP_CAP);
+    return ret;
+}
 
-/* Actual morecore implementation
-   returns 0 if failure, returns newbrk if success.
-*/
+/* Wrapper to make brk use sbrk */
+static long dbrk = 0;
+long
+sys_brk_internal(uintptr_t newbrk) {
+/*if the newbrk is 0, return the bottom of the heap*/
+
+    if(dbrk == 0) {
+        dbrk = sys_sbrk_internal(0);
+    }
+
+    if(newbrk == 0) {
+        return dbrk;
+    } else {
+        long ret = sys_sbrk_internal(newbrk-dbrk);
+        if(ret == 0) {
+            return 0;
+        }
+        return newbrk;
+    }
+}
 
 long
 sys_brk(va_list ap)
 {
-
     uintptr_t newbrk = va_arg(ap, uintptr_t);
-    struct ipc_command ipc = ipc_create();
-    ipc_packi(&ipc, SOS_SYSCALL_SBRK);
-    ipc_packi(&ipc, newbrk);
-    uint32_t ret = ipc_call(&ipc, SOS_IPC_EP_CAP);
-
-    return ret;
+    return sys_brk_internal(newbrk);
 }
 
 /* Large mallocs will result in muslc calling mmap, so we do a minimal implementation
@@ -53,6 +61,7 @@ sys_brk(va_list ap)
 long
 sys_mmap2(va_list ap)
 {
+    /*
     void *addr = va_arg(ap, void*);
     size_t length = va_arg(ap, size_t);
     int prot = va_arg(ap, int);
@@ -64,16 +73,8 @@ sys_mmap2(va_list ap)
     (void)fd;
     (void)offset;
     assert(!"not implemented");
-    if (flags & MAP_ANONYMOUS) {
-        /* Steal from the top */
-        uintptr_t base = morecore_top - length;
-        if (base < morecore_base) {
-            return -ENOMEM;
-        }
-        morecore_top = base;
-        return base;
-    }
-    assert(!"not implemented");
+    */
+    printf("Oh noe");
     return -ENOMEM;
 }
 

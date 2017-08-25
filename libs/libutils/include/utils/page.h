@@ -19,7 +19,7 @@
 #define PAGE_SIZE_4K (BIT(PAGE_BITS_4K))
 #define PAGE_MASK_4K (PAGE_SIZE_4K - 1)
 #define PAGE_ALIGN_4K(addr) ((addr) & ~PAGE_MASK_4K)
-#define PAGE_ALIGN_UP_4K(addr) (PAGE_ALIGN_4K(addr+PAGE_SIZE_4K-1))
+#define PAGE_ALIGN_UP_4K(addr) (PAGE_ALIGN_4K(addr) == addr ? addr : (PAGE_ALIGN_4K(addr)+PAGE_SIZE_4K))
 #define IS_ALIGNED_4K(addr) IS_ALIGNED(addr, PAGE_BITS_4K)
 #define BYTES_TO_4K_PAGES(b) (((b) / PAGE_SIZE_4K) + ((((b) % PAGE_SIZE_4K) > 0) ? 1 : 0))
 

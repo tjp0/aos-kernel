@@ -38,8 +38,9 @@
 #include "test_timer.h"
 #include <utils/arith.h>
 #include <syscall.h>
+#include <syscall/syscall_memory.h>
 
-#define verbose 5
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -96,7 +97,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
 	switch (syscall_number) {
 		case SOS_SYSCALL_SERIALWRITE: 
 		{
-			dprintf(0, "syscall: thread made syscall serialwrite!\n");
+			dprintf(2, "syscall: thread made syscall serialwrite!\n");
 			size_t length;
 			char array[512];
 			vaddr_t ptr;
@@ -106,13 +107,24 @@ void handle_syscall(seL4_Word badge, int num_args) {
 			length = MIN(sizeof(array)-1, length);
 			copy_vspace2sos(ptr, array, &tty_test_process->vspace, length, 0);
 			array[length] = '\0';
-			dprintf(0,"Length is %u\n",length);
-			dprintf(0,"Printing string %s\n",array);
+			dprintf(2,"Length is %u\n",length);
+			dprintf(2,"Printing string %s\n",array);
 			serial_send(global_serial, array, length);
 			seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
 			seL4_Send(reply_cap, reply); 
 		}
 			break;
+
+		case SOS_SYSCALL_SBRK:
+		{
+			uint32_t size;
+			ipc_unpacki(&ipc, &size);
+			uint32_t ret = syscall_sbrk(tty_test_process, size);
+			ipc = ipc_create();
+			ipc_packi(&ipc, ret);
+			ipc_send(&ipc, reply_cap);
+
+		} break; 
 
 		default:
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
@@ -132,24 +144,24 @@ void syscall_loop(seL4_CPtr ep) {
 
 		message = seL4_Wait(ep, &badge);
 		label = seL4_MessageInfo_get_label(message);
-		dprintf(1, "SOS activated\n");
+		dprintf(2, "SOS activated\n");
 		if (badge & IRQ_EP_BADGE) {
 			/* Interrupt */
 			if (badge & IRQ_BADGE_NETWORK) {
-				dprintf(1, "Network IRQ\n");
+				dprintf(2, "Network IRQ\n");
 				network_irq();
 			}
 			if (badge & IRQ_BADGE_EPIT1) {
-				dprintf(1, "Timer IRQ\n");
+				dprintf(2, "Timer IRQ\n");
 				timer_interrupt_epit1();
 			}
 			if (badge & IRQ_BADGE_EPIT2) {
-				dprintf(1, "Timer IRQ\n");
+				dprintf(2, "Timer IRQ\n");
 				timer_interrupt_epit2();
 			}
 
 		} else if (label == seL4_VMFault) {
-			dprintf(1, "VMFAULT\n");
+			dprintf(2, "VMFAULT\n");
 			sos_handle_vmfault(tty_test_process);
 
 		} else if (label == seL4_NoFault) {

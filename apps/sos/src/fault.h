@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-
+#include <sel4/sel4.h>
 /* A bunch of defs and inline functions for ARM status register parsing */
 
 #define FSR_ALIGNMENTFAULT 0b1
@@ -41,3 +41,21 @@ static inline int fault_isalignmentfault(uint32_t reg) {
 }
 
 char* fault_getprintable(uint32_t reg);
+
+struct fault {
+	uint32_t status;
+	uint32_t ifault;
+	uint32_t pc;
+	uint32_t vaddr;
+};
+
+static inline struct fault fault_struct(void) {
+	struct fault f;
+	f.pc = seL4_GetMR(0);
+	f.vaddr = seL4_GetMR(1);
+	f.ifault = seL4_GetMR(2);
+	f.status = seL4_GetMR(3);
+	return f;
+}
+
+void print_fault(struct fault f);

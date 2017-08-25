@@ -26,6 +26,8 @@ void plogf(const char *msg, ...);
 
 #define dprintf(v, ...) _dprintf(v, "\033[22;33m", __VA_ARGS__)
 
+#define dprint_fault(a, b) {if (a < verbose) print_fault(b);}
+
 #define WARN(...) _dprintf(-1, "\033[1;31mWARNING: ", __VA_ARGS__)
 
 #define NOT_IMPLEMENTED()                                                 \

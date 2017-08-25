@@ -5,7 +5,7 @@
 #include <string.h>
 #include <utils/page.h>
 #include <vm.h>
-#define verbose 5
+#define verbose 0
 #include <sys/debug.h>
 
 /* This function is called when the copy happens inside a single page */
