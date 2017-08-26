@@ -39,7 +39,16 @@ region_node* make_region_node(void* addr, unsigned int size,
 /* Returns 0 on success */
 int add_region(region_list* reg_list, void* addr, unsigned int size,
 			   unsigned int perm) {
-	assert(IS_ALIGNED_4K((unsigned long int)addr));
+	// assert(IS_ALIGNED_4K((unsigned long int)addr));
+	// assert(IS_ALIGNED_4K((unsigned long int)(addr + size)));
+
+	if (IS_ALIGNED_4K((unsigned long int)addr)) {
+		return REGION_FAIL;
+	}
+	if (IS_ALIGNED_4K((unsigned long int)(addr + size))) {
+		return REGION_FAIL;
+	}
+
 	// If it overlaps then that's not ok
 	if (does_region_overlap(reg_list, addr, size) == REGION_FAIL) {
 		return REGION_FAIL;
