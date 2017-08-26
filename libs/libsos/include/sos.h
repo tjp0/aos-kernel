@@ -13,6 +13,7 @@
 #ifndef _SOS_H
 #define _SOS_H
 
+#include <ipc.h>
 #include <sel4/sel4.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -36,11 +36,13 @@
 #include <process.h>
 #include <region_manager.h>
 #include <syscall.h>
+#include <syscall/syscall_io.h>
 #include <syscall/syscall_memory.h>
+#include <syscall/syscall_time.h>
 #include <utils/arith.h>
+#include <utils/picoro.h>
 #include "test_timer.h"
-
-#define verbose 1
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -86,9 +88,24 @@ extern fhandle_t mnt_point;
 void handle_syscall(seL4_Word badge, int num_args) {
 	seL4_Word syscall_number;
 	seL4_CPtr reply_cap;
+	struct process* process = tty_test_process;
 
 	struct ipc_command ipc = ipc_create();
 	ipc_unpacki(&ipc, &syscall_number);
+
+	unsigned int arg1;
+	unsigned int arg2;
+	unsigned int arg3;
+	unsigned int arg4;
+	unsigned int err;
+	unsigned int ret1 = 0;
+	unsigned int ret2 = 0;
+	unsigned int ret3 = 0;
+	unsigned int ret4 = 0;
+	ipc_unpacki(&ipc, &arg1);
+	ipc_unpacki(&ipc, &arg2);
+	ipc_unpacki(&ipc, &arg3);
+	ipc_unpacki(&ipc, &arg4);
 
 	/* Save the caller */
 	reply_cap = cspace_save_reply_cap(cur_cspace);
@@ -96,79 +113,93 @@ void handle_syscall(seL4_Word badge, int num_args) {
 	/* Process system call */
 	switch (syscall_number) {
 		case SOS_SYSCALL_SERIALWRITE: {
-			dprintf(2, "syscall: thread made syscall serialwrite!\n");
-			size_t length;
-			char array[512];
-			vaddr_t ptr;
-			ipc_unpacki(&ipc, &ptr);
-			ipc_unpacki(&ipc, &length);
-
-			length = MIN(sizeof(array) - 1, length);
-			copy_vspace2sos(ptr, array, &tty_test_process->vspace, length, 0);
-			array[length] = '\0';
-			dprintf(2, "Length is %u\n", length);
-			dprintf(2, "Printing string %s\n", array);
-			serial_send(global_serial, array, length);
-			seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
-			seL4_Send(reply_cap, reply);
+			err = syscall_serialwrite(process, arg1, arg2, &ret1);
 		} break;
-
 		case SOS_SYSCALL_SBRK: {
-			uint32_t size;
-			ipc_unpacki(&ipc, &size);
-			uint32_t ret = syscall_sbrk(tty_test_process, size);
-			ipc = ipc_create();
-			ipc_packi(&ipc, ret);
-			ipc_send(&ipc, reply_cap);
-
+			err = syscall_sbrk(process, arg1);
 		} break;
-
-		default:
+		case SOS_SYSCALL_USLEEP: {
+			err = syscall_usleep(process, arg1);
+		} break;
+		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);
-			/* we don't want to reply to an unknown syscall */
+			/* we don't want to reply to an unknown syscall, so short circuit
+			 * here */
+			cspace_free_slot(cur_cspace, reply_cap);
+			return;
+		}
 	}
+
+	/* Respond to the syscall */
+	ipc = ipc_create();
+	ipc_packi(&ipc, err);
+	ipc_packi(&ipc, ret1);
+	ipc_packi(&ipc, ret2);
+	ipc_packi(&ipc, ret3);
+	ipc_packi(&ipc, ret4);
+	ipc_send(&ipc, reply_cap);
 
 	/* Free the saved reply cap */
 	cspace_free_slot(cur_cspace, reply_cap);
 }
 
-void syscall_loop(seL4_CPtr ep) {
+struct event {
+	seL4_Word badge;
+	seL4_Word label;
+	seL4_MessageInfo_t message;
+};
+
+void* handle_event(void* e) {
+	struct event* event = (struct event*)e;
+	seL4_Word badge = event->badge;
+	seL4_Word label = event->label;
+	seL4_MessageInfo_t message = event->message;
+
+	dprintf(2, "SOS activated\n");
+	if (badge & IRQ_EP_BADGE) {
+		/* Interrupt */
+		if (badge & IRQ_BADGE_NETWORK) {
+			dprintf(2, "Network IRQ\n");
+			network_irq();
+		}
+		if (badge & IRQ_BADGE_EPIT1) {
+			dprintf(2, "Timer IRQ\n");
+			timer_interrupt_epit1();
+		}
+		if (badge & IRQ_BADGE_EPIT2) {
+			dprintf(2, "Timer IRQ\n");
+			timer_interrupt_epit2();
+		}
+
+	} else if (label == seL4_VMFault) {
+		dprintf(2, "VMFAULT\n");
+		sos_handle_vmfault(tty_test_process);
+
+	} else if (label == seL4_NoFault) {
+		/* System call */
+		handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
+
+	} else {
+		printf("Rootserver got an unknown message\n");
+	}
+	dprintf(2, "Coro complete\n");
+	return 0;
+}
+
+void* event_loop(void* void_ep) {
+	seL4_CPtr ep = (seL4_CPtr)void_ep;
 	while (1) {
 		seL4_Word badge;
 		seL4_Word label;
 		seL4_MessageInfo_t message;
-
 		message = seL4_Wait(ep, &badge);
 		label = seL4_MessageInfo_get_label(message);
-		dprintf(2, "SOS activated\n");
-		if (badge & IRQ_EP_BADGE) {
-			/* Interrupt */
-			if (badge & IRQ_BADGE_NETWORK) {
-				dprintf(2, "Network IRQ\n");
-				network_irq();
-			}
-			if (badge & IRQ_BADGE_EPIT1) {
-				dprintf(2, "Timer IRQ\n");
-				timer_interrupt_epit1();
-			}
-			if (badge & IRQ_BADGE_EPIT2) {
-				dprintf(2, "Timer IRQ\n");
-				timer_interrupt_epit2();
-			}
-
-		} else if (label == seL4_VMFault) {
-			dprintf(2, "VMFAULT\n");
-			sos_handle_vmfault(tty_test_process);
-
-		} else if (label == seL4_NoFault) {
-			/* System call */
-			handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-
-		} else {
-			printf("Rootserver got an unknown message\n");
-		}
+		struct event e = {badge, label, message};
+		coro event_handler = coroutine(&handle_event);
+		resume(event_handler, &e);
 	}
+	return NULL;
 }
 
 static void print_bootinfo(const seL4_BootInfo* info) {
@@ -346,7 +377,7 @@ int main(void) {
 				badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
 
 	// test_timers();
-	// register_timer(100,&simple_timer_callback,NULL);
+	register_timer(1000 * 1000, &simple_timer_callback, NULL);
 
 	// frame_test();
 
@@ -355,8 +386,12 @@ int main(void) {
 
 	/* Wait on synchronous endpoint for IPC */
 	dprintf(0, "\nSOS entering syscall loop\n");
-	syscall_loop(_sos_ipc_ep_cap);
 
+	coro coro_event_loop = coroutine(event_loop);
+	resume(coro_event_loop, (void*)_sos_ipc_ep_cap);
+
+	panic(
+		"Main event loop coroutine ended. We don't support shutting down  :(");
 	/* Not reached */
 	return 0;
 }

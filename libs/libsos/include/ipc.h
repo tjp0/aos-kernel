@@ -89,7 +89,7 @@ static inline void ipc_send(struct ipc_command* ipc, seL4_CPtr dest) {
 	seL4_Send(dest, tag);
 }
 
-static inline uint32_t ipc_call(struct ipc_command* ipc, seL4_CPtr dest) {
+static inline int32_t ipc_call(struct ipc_command* ipc, seL4_CPtr dest) {
 	seL4_MessageInfo_t tag =
 		seL4_MessageInfo_new(ipc->label, 0, 0, ipc->length);
 	seL4_SetTag(tag);

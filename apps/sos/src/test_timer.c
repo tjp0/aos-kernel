@@ -13,9 +13,9 @@
 #include "test_timer.h"
 
 void simple_timer_callback(uint32_t id, void *data) {
-	printf("I am Timer %d, who was created with %p\n", id, data);
+	//	printf("I am Timer %d, who was created with %p\n", id, data);
 	printf("It has been %lld milliseconds since boot\n", time_stamp());
-	register_timer(100, &simple_timer_callback, NULL);
+	register_timer(1000 * 1000, &simple_timer_callback, NULL);
 }
 
 void death(uint32_t id, void *data) {

@@ -272,7 +272,6 @@ static uint32_t add_timer_to_beep(timer_struct *timer) {
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
 	dprintf(0, "registering timer with delay %llu\n", delay);
 	assert(callback != 0);
-	delay *= 1000;
 	delay += time_stamp();
 	dprintf(0, "which will be called at %llu\n", delay);
 

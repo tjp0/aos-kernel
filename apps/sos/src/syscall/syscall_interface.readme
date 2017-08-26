@@ -1,0 +1,10 @@
+/* Standard syscall interface is as follows:
+
+
+	arg0 (The first IPC argument) is the syscall number
+	arg1-arg4 are all standard integers/pointers
+
+	ret0 is the error code dependent on the syscall, however 0 must == SUCCESS,
+   and >0 is a FAILURE
+	ret1-ret3 are the return values from the syscall dependent on the syscall
+*/
