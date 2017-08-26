@@ -348,10 +348,10 @@ int main(void) {
 	// test_timers();
 	// register_timer(100,&simple_timer_callback,NULL);
 
-	// frame_test();
+	frame_test();
 
 	/* Start the user application */
-	start_first_process("First Process", _sos_ipc_ep_cap);
+	// start_first_process("First Process", _sos_ipc_ep_cap);
 
 	/* Wait on synchronous endpoint for IPC */
 	dprintf(0, "\nSOS entering syscall loop\n");

@@ -38,7 +38,7 @@ static void thread_block(void) {
 
 	struct ipc_command ipc = ipc_create();
 
-	if (!ipc_packi(&ipc, 100)) {
+	if (!ipc_packi(&ipc, 101)) {
 		return;
 	}
 	ipc_call(&ipc, SYSCALL_ENDPOINT_SLOT);

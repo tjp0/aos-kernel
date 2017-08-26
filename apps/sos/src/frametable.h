@@ -10,7 +10,7 @@ struct frame {
 
 struct frame* get_frame(void* addr);
 
-void* frame_getvaddr(struct frame* frame);
+inline void* frame_cell_to_vaddr(struct frame* frame_cell);
 
 void* frame_alloc(void);
 
