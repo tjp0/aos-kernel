@@ -19,12 +19,12 @@ typedef struct _region_node {
 	struct _region_node* prev;
 } region_node;
 
-typedef struct _region_list { 
+typedef struct _region_list {
 	region_node* start;
 	region_node* stack;
 	region_node* ipc_buffer;
 	region_node* heap;
- } region_list;
+} region_list;
 
 /* malloc the thing and get things set up*/
 int init_region_list(region_list** reg_list);
@@ -35,7 +35,7 @@ region_node* make_region_node(vaddr_t addr, unsigned int size,
 
 /* Returns 0 on success */
 region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
-			   unsigned int perm);
+						unsigned int perm);
 
 void region_list_destroy(region_list* reg_list);
 
@@ -49,10 +49,10 @@ region_node* find_region(region_list* reg_list, vaddr_t addr);
 
 void regions_print(region_list* reg_list);
 
-//Probably to expand the stack
+// Probably to expand the stack
 int expand_left(region_node* node, vaddr_t address);
 
-//Probably to expand the heap
+// Probably to expand the heap
 int expand_right(region_node* node, uint32_t size);
 
 int in_stack_region(region_node* node, vaddr_t vaddr);

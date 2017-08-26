@@ -1,6 +1,6 @@
 #pragma once
-#include <stdint.h>
 #include <sel4/sel4.h>
+#include <stdint.h>
 /* A bunch of defs and inline functions for ARM status register parsing */
 
 #define FSR_ALIGNMENTFAULT 0b1
@@ -13,21 +13,22 @@
 #define FSR_DOMAINFAULT_FIRSTLEVEL 0b1001
 #define FSR_DOMAINFAULT_SECONDLEVEL 010011
 
-#define DF_WRITEERROR					(1<<11)
+#define DF_WRITEERROR (1 << 11)
 
-static inline uint32_t fault_maskfault(uint32_t reg) {
-	return (reg & 0b1111);
-}
+static inline uint32_t fault_maskfault(uint32_t reg) { return (reg & 0b1111); }
 
 static inline int fault_ispermissionfault(uint32_t reg) {
 	reg = fault_maskfault(reg);
-	return (reg == FSR_PERMISSIONFAULT_SECONDLEVEL || reg == FSR_PERMISSIONFAULT_FIRSTLEVEL);
+	return (reg == FSR_PERMISSIONFAULT_SECONDLEVEL ||
+			reg == FSR_PERMISSIONFAULT_FIRSTLEVEL);
 }
 
 static inline int fault_isaccessfault(uint32_t reg) {
 	reg = fault_maskfault(reg);
-		return (reg == FSR_ACCESSFAULT_FIRSTLEVEL || reg == FSR_ACCESSFAULT_SECONDLEVEL
-			|| reg == FSR_TRANSLATION_FAULT_FIRSTLEVEL || reg == FSR_TRANSLATION_FAULT_SECONDLEVEL);
+	return (reg == FSR_ACCESSFAULT_FIRSTLEVEL ||
+			reg == FSR_ACCESSFAULT_SECONDLEVEL ||
+			reg == FSR_TRANSLATION_FAULT_FIRSTLEVEL ||
+			reg == FSR_TRANSLATION_FAULT_SECONDLEVEL);
 }
 
 /* Must check if it is actually a permission fault first */

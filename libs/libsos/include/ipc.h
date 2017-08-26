@@ -1,9 +1,9 @@
 #pragma once
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
 #include <sel4/sel4.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct ipc_command {
@@ -12,10 +12,9 @@ struct ipc_command {
 	int err;
 };
 
-#define DIV_UP(x,y) ((x+(y-1))/y)
+#define DIV_UP(x, y) ((x + (y - 1)) / y)
 
-static inline
-struct ipc_command ipc_create(void) {
+static inline struct ipc_command ipc_create(void) {
 	struct ipc_command ipc;
 	ipc.length = 0;
 	ipc.label = 0;
@@ -23,10 +22,8 @@ struct ipc_command ipc_create(void) {
 	return ipc;
 }
 
-static inline
-int ipc_packi(struct ipc_command* ipc, seL4_Word word) {
-
-	if(ipc->length + 1 > seL4_MsgMaxLength) {
+static inline int ipc_packi(struct ipc_command* ipc, seL4_Word word) {
+	if (ipc->length + 1 > seL4_MsgMaxLength) {
 		ipc->err = 1;
 		return 0;
 	}
@@ -53,13 +50,12 @@ int ipc_packs(struct ipc_command* ipc, seL4_Word length, void* string) {
 	return 1;
 }
 */
-static inline
-int ipc_unpacki(struct ipc_command* ipc, seL4_Word* integer) {
-	if(ipc->length > seL4_MsgMaxLength) {
+static inline int ipc_unpacki(struct ipc_command* ipc, seL4_Word* integer) {
+	if (ipc->length > seL4_MsgMaxLength) {
 		ipc->err = 1;
 		return 0;
 	}
-	if(integer != NULL) {
+	if (integer != NULL) {
 		*integer = seL4_GetMR(ipc->length);
 	}
 	ipc->length += 1;
@@ -86,30 +82,27 @@ int ipc_unpackb(struct ipc_command* ipc, seL4_Word* length, void** array) {
 
 	return 1;
 } */
-static inline
-void ipc_send(struct ipc_command* ipc, seL4_CPtr dest) {
-	seL4_MessageInfo_t tag = seL4_MessageInfo_new(ipc->label, 0, 0, ipc->length);
-    seL4_SetTag(tag);
-    seL4_Send(dest,tag);
+static inline void ipc_send(struct ipc_command* ipc, seL4_CPtr dest) {
+	seL4_MessageInfo_t tag =
+		seL4_MessageInfo_new(ipc->label, 0, 0, ipc->length);
+	seL4_SetTag(tag);
+	seL4_Send(dest, tag);
 }
 
-static inline
-uint32_t ipc_call(struct ipc_command* ipc, seL4_CPtr dest) {
-	seL4_MessageInfo_t tag = seL4_MessageInfo_new(ipc->label, 0, 0, ipc->length);
-    seL4_SetTag(tag);
-    seL4_Call(dest,tag);
-    *ipc = ipc_create();
-    uint32_t ret;
-    ipc_unpacki(ipc, &ret);
-    return ret;
+static inline uint32_t ipc_call(struct ipc_command* ipc, seL4_CPtr dest) {
+	seL4_MessageInfo_t tag =
+		seL4_MessageInfo_new(ipc->label, 0, 0, ipc->length);
+	seL4_SetTag(tag);
+	seL4_Call(dest, tag);
+	*ipc = ipc_create();
+	uint32_t ret;
+	ipc_unpacki(ipc, &ret);
+	return ret;
 }
 /*
 static inline
 size_t ipc_maxs(struct ipc_command* ipc) {
 	return (seL4_MsgMaxLength - ipc->length - 1)*sizeof(seL4_Word);
-} 
-*/
-static inline
-int ipc_err(struct ipc_command* ipc) {
-	return ipc->err;
 }
+*/
+static inline int ipc_err(struct ipc_command* ipc) { return ipc->err; }

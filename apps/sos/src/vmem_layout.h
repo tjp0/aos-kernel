@@ -36,6 +36,6 @@
 /* Constants for how SOS will layout the address space of any
  * processes it loads up */
 
-#define PROCESS_TOP (0xD0000000) 
+#define PROCESS_TOP (0xD0000000)
 
 #endif /* _MEM_LAYOUT_H_ */

@@ -22,23 +22,23 @@
 #include <serial/serial.h>
 
 #include <clock/clock.h>
+#include <vm.h>
 #include "elf.h"
 #include "network.h"
-#include <vm.h>
 
 #include "mapping.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
 
 #include <autoconf.h>
+#include <copy.h>
 #include <frametable.h>
 #include <process.h>
 #include <region_manager.h>
-#include <copy.h>
-#include "test_timer.h"
-#include <utils/arith.h>
 #include <syscall.h>
 #include <syscall/syscall_memory.h>
+#include <utils/arith.h>
+#include "test_timer.h"
 
 #define verbose 1
 #include <sys/debug.h>
@@ -95,8 +95,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
 	assert(reply_cap != CSPACE_NULL);
 	/* Process system call */
 	switch (syscall_number) {
-		case SOS_SYSCALL_SERIALWRITE: 
-		{
+		case SOS_SYSCALL_SERIALWRITE: {
 			dprintf(2, "syscall: thread made syscall serialwrite!\n");
 			size_t length;
 			char array[512];
@@ -104,19 +103,17 @@ void handle_syscall(seL4_Word badge, int num_args) {
 			ipc_unpacki(&ipc, &ptr);
 			ipc_unpacki(&ipc, &length);
 
-			length = MIN(sizeof(array)-1, length);
+			length = MIN(sizeof(array) - 1, length);
 			copy_vspace2sos(ptr, array, &tty_test_process->vspace, length, 0);
 			array[length] = '\0';
-			dprintf(2,"Length is %u\n",length);
-			dprintf(2,"Printing string %s\n",array);
+			dprintf(2, "Length is %u\n", length);
+			dprintf(2, "Printing string %s\n", array);
 			serial_send(global_serial, array, length);
 			seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
-			seL4_Send(reply_cap, reply); 
-		}
-			break;
+			seL4_Send(reply_cap, reply);
+		} break;
 
-		case SOS_SYSCALL_SBRK:
-		{
+		case SOS_SYSCALL_SBRK: {
 			uint32_t size;
 			ipc_unpacki(&ipc, &size);
 			uint32_t ret = syscall_sbrk(tty_test_process, size);
@@ -124,7 +121,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
 			ipc_packi(&ipc, ret);
 			ipc_send(&ipc, reply_cap);
 
-		} break; 
+		} break;
 
 		default:
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,

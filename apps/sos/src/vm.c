@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <cspace/cspace.h>
+#include <fault.h>
 #include <frametable.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -7,7 +8,6 @@
 #include <ut_manager/ut.h>
 #include <utils/page.h>
 #include <vm.h>
-#include <fault.h>
 
 #define verbose 1
 #include <sys/debug.h>
@@ -51,7 +51,9 @@ static struct page_table* create_pt(struct page_directory* pd,
 	err = seL4_ARM_PageTable_Map(pt_cap, pd->seL4_pd, address,
 								 seL4_ARM_Default_VMAttributes);
 	if (err) {
-		dprintf(2,"Failed creating page table, fail1, addr=0x%x, err=%u\n, reg=%d",address,err,seL4_GetMR(0));
+		dprintf(
+			2, "Failed creating page table, fail1, addr=0x%x, err=%u\n, reg=%d",
+			address, err, seL4_GetMR(0));
 		goto fail1;
 	}
 
@@ -65,7 +67,7 @@ fail1:
 fail2:
 	ut_free(pt_addr, seL4_PageTableBits);
 fail3:
-	dprintf(2,"Failed creating page table, fail2/3\n");
+	dprintf(2, "Failed creating page table, fail2/3\n");
 	return NULL;
 }
 
@@ -121,7 +123,7 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 									   vaddr_t address, uint8_t permissions) {
 	assert(pd != NULL);
 	address = PAGE_ALIGN_4K(address);
-	dprintf(2, "Creating page at addr: 0x%x\n",address);
+	dprintf(2, "Creating page at addr: 0x%x\n", address);
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(address)];
 	dprintf(2, "New page 1st index: %u\n", vaddr_to_ptsoffset(address));
 	if (pt == NULL) {
@@ -151,7 +153,8 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 	return pte;
 }
 
-struct page_table_entry* sos_map_page(struct page_directory* pd, vaddr_t address, uint8_t permissions) {
+struct page_table_entry* sos_map_page(struct page_directory* pd,
+									  vaddr_t address, uint8_t permissions) {
 	return pd_createpage(pd, address, permissions);
 }
 
@@ -181,14 +184,13 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 }
 
 int vm_missingpage(struct vspace* vspace, vaddr_t address) {
-	dprintf(1,"VM MISSING PAGE CALLED AT ADDRESS %p\n", (void*)address);
+	dprintf(1, "VM MISSING PAGE CALLED AT ADDRESS %p\n", (void*)address);
 	address = PAGE_ALIGN_4K(address);
 	region_node* region = find_region(vspace->regions, address);
 
-	if(region == NULL && in_stack_region(vspace->regions->stack, address))
-	{
+	if (region == NULL && in_stack_region(vspace->regions->stack, address)) {
 		int err = expand_left(vspace->regions->stack, address);
-		if(err != REGION_GOOD) {
+		if (err != REGION_GOOD) {
 			return VM_FAIL;
 		}
 		region = vspace->regions->stack;
@@ -215,25 +217,24 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 
 /* Could use a lookup table */
 char* fault_getprintable(uint32_t reg) {
-
-	if(fault_ispermissionfault(reg)) {
-		return fault_iswritefault(reg) ? "permission fault (writing)" : "permission fault (reading)";
-	} else if(fault_isaccessfault(reg)) {
+	if (fault_ispermissionfault(reg)) {
+		return fault_iswritefault(reg) ? "permission fault (writing)"
+									   : "permission fault (reading)";
+	} else if (fault_isaccessfault(reg)) {
 		return "access fault";
-	} else if(fault_isalignmentfault(reg)) {
+	} else if (fault_isalignmentfault(reg)) {
 		return "alignment fault";
 	}
 	return "unknown fault";
 }
 
 void print_fault(struct fault f) {
-	printf("vm fault at 0x%08x, pc = 0x%08x, status=0x%x, %s %s\n",
-	f.vaddr, f.pc, f.status, f.ifault ? "Instruction" : "Data",
-	fault_getprintable(f.status));
+	printf("vm fault at 0x%08x, pc = 0x%08x, status=0x%x, %s %s\n", f.vaddr,
+		   f.pc, f.status, f.ifault ? "Instruction" : "Data",
+		   fault_getprintable(f.status));
 }
 
 void sos_handle_vmfault(struct process* process) {
-
 	assert(process != NULL);
 
 	/* Page fault */
@@ -243,9 +244,9 @@ void sos_handle_vmfault(struct process* process) {
 	assert(reply_cap != CSPACE_NULL);
 
 	/* If the page doesn't exist in the pagetable */
-	if(fault_isaccessfault(fault.status)) {
+	if (fault_isaccessfault(fault.status)) {
 		int err = vm_missingpage(&process->vspace, fault.vaddr);
-		if(err != VM_OKAY) {
+		if (err != VM_OKAY) {
 			dprintf(0, "Invalid memory access for process");
 			dprint_fault(0, fault);
 			process_kill(process);

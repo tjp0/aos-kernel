@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <typedefs.h>
 
-/* 
+/*
  *	Virtual Memory System
 */
 
@@ -39,6 +39,7 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address);
 
 struct page_table_entry* pd_getpage(struct page_directory* pd, vaddr_t address);
 
-struct page_table_entry* sos_map_page(struct page_directory* pd, vaddr_t address, uint8_t permissions);
+struct page_table_entry* sos_map_page(struct page_directory* pd,
+									  vaddr_t address, uint8_t permissions);
 
 void sos_handle_vmfault(struct process* process);

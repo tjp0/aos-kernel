@@ -51,7 +51,8 @@ int map_page(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr,
 	int err;
 
 	/* We've got our own page table handling for everything outside of SOS */
-	conditional_panic(pd != seL4_CapInitThreadPD,"map_page called on an externally managed page table");
+	conditional_panic(pd != seL4_CapInitThreadPD,
+					  "map_page called on an externally managed page table");
 
 	/* Attempt the mapping */
 	err = seL4_ARM_Page_Map(frame_cap, pd, vaddr, rights, attr);
