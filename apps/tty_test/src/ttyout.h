@@ -19,6 +19,8 @@
  */
 extern void ttyout_init(void);
 
+void pt_test(void);
+
 /**
  * This is our system call endpoint cap, as defined by the root server
  */

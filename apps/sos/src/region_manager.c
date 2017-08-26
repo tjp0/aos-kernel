@@ -5,123 +5,190 @@
  * * * * * * * * * * * * * */
 
 #include "region_manager.h"
+#include <sel4/sel4.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <vmem_layout.h>
+#define verbose 0
+#include <sys/debug.h>
 
-static int compare_nodes(void* data1, void* data2);
-static int print_node(void* data);
-/* malloc the thing and get things set up*/
+/* Leave a 4K page minimum between expanding regions */
+#define REGION_SAFETY PAGE_SIZE_4K
+
+static int create_initial_regions(region_list* reg_list) {
+	region_node* ipc_buffer = add_region(reg_list, PROCESS_TOP, PAGE_SIZE_4K,
+										 seL4_CanRead | seL4_CanWrite);
+	if (ipc_buffer == NULL) {
+		return REGION_FAIL;
+	}
+
+	region_node* stack = add_region(reg_list, PROCESS_TOP - PAGE_SIZE_4K,
+									PAGE_SIZE_4K, seL4_CanRead | seL4_CanWrite);
+	if (stack == NULL) {
+		return REGION_FAIL;
+	}
+	ipc_buffer->name = "IPC BUFFER";
+	stack->name = "STACK";
+	reg_list->ipc_buffer = ipc_buffer;
+	reg_list->stack = stack;
+
+	return REGION_GOOD;
+}
+
+void region_list_destroy(region_list* reg_list) {
+	assert(reg_list != NULL);
+	region_node* node = reg_list->start;
+	while (node) {
+		region_node* next = node->next;
+		free(node);
+		node = next;
+	}
+	free(reg_list);
+}
+
 int init_region_list(region_list** reg_list) {
-	*reg_list = (region_list*)malloc(sizeof(struct _region_list));
-
-	if (!*reg_list) {
-		printf("MALLOC FAILED\n");
+	region_list* list = malloc(sizeof(region_list));
+	if (list == NULL) {
 		return REGION_FAIL;
-	}
-	(*reg_list)->regions = (list_t*)malloc(sizeof(list_t));
-	list_init((*reg_list)->regions);
+	};
 
-	return REGION_GOOD;
+	list->start = NULL;
+	int err = create_initial_regions(list);
+
+	if (err == REGION_FAIL) {
+		region_list_destroy(list);
+		return REGION_FAIL;
+	} else {
+		*reg_list = list;
+		return REGION_GOOD;
+	}
 }
 
-/* malloc the thing and get things set up*/
-region_node* make_region_node(void* addr, unsigned int size,
+/* Finds the place in the sorted linked list to insert a new chunk at vaddr */
+static region_node* findspot(region_node* start, vaddr_t vaddr) {
+	assert(start != NULL);
+
+	while (start->next != NULL) {
+		if (start->next->vaddr > vaddr) return start;
+
+		start = start->next;
+	}
+
+	return start;
+}
+
+region_node* make_region_node(vaddr_t addr, unsigned int size,
 							  unsigned int perm) {
-	region_node* region = (region_node*)malloc(sizeof(struct _region_node));
-
-	region->addr = addr;
-	region->size = size;
-	region->perm = perm;
-
-	return region;
+	region_node* new_node = malloc(sizeof(region_node));
+	if (new_node == NULL) {
+		return NULL;
+	}
+	new_node->vaddr = addr;
+	new_node->size = size;
+	new_node->perm = perm;
+	new_node->name = "ELF";
+	return new_node;
 }
 
-/* Returns 0 on success */
-int add_region(region_list* reg_list, void* addr, unsigned int size,
-			   unsigned int perm) {
-	// assert(IS_ALIGNED_4K((unsigned long int)addr));
-	// assert(IS_ALIGNED_4K((unsigned long int)(addr + size)));
+region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
+						unsigned int perm) {
+	assert(IS_ALIGNED_4K(addr));
+	assert(IS_ALIGNED_4K(size));
+	assert(reg_list != NULL);
 
-	if (IS_ALIGNED_4K((unsigned long int)addr)) {
-		return REGION_FAIL;
+	region_node* cur = reg_list->start;
+
+	region_node* new_node = make_region_node(addr, size, perm);
+	if (new_node == NULL) {
+		return NULL;
 	}
-	if (IS_ALIGNED_4K((unsigned long int)(addr + size))) {
+
+	if (!cur) {
+		reg_list->start = new_node;
+		return new_node;
+	} else if (cur->vaddr > addr) {
+		region_node* prev = reg_list->start;
+		new_node->next = prev;
+		prev->prev = new_node;
+		reg_list->start = new_node;
+		return new_node;
+	} else {
+		region_node* prev = findspot(reg_list->start, addr);
+		new_node->next = prev->next;
+		new_node->prev = prev;
+		prev->next = new_node;
+		return new_node;
+	}
+}
+
+region_node* find_region(region_list* list, vaddr_t addr) {
+	region_node* start = list->start;
+
+	while (start != NULL) {
+		if (start->vaddr > addr) return NULL;
+
+		if (start->vaddr + start->size >= addr) return start;
+
+		start = start->next;
+	}
+	return NULL;
+}
+
+// Probably to expand the stack
+int expand_left(region_node* node, vaddr_t address) {
+	address = PAGE_ALIGN_4K(address);
+
+	region_node* neighbor = node->prev;
+
+	if (address < neighbor->vaddr + neighbor->size + REGION_SAFETY) {
 		return REGION_FAIL;
 	}
 
-	// If it overlaps then that's not ok
-	if (does_region_overlap(reg_list, addr, size) == REGION_FAIL) {
-		return REGION_FAIL;
-	}
-	// Make a new region
-	region_node* new_region = make_region_node(addr, size, perm);
-	// append it to the list
-	list_append(reg_list->regions, new_region);
+	node->vaddr -= address;
 	return REGION_GOOD;
 }
 
-/* Returns 0 if it's ok, -1 if that region is occupied */
-int does_region_overlap(region_list* reg_list, void* addr, unsigned int size) {
-	// test all the regions
-	struct list_node* n = reg_list->regions->head;
-	while (n != NULL) {
-		region_node* node = n->data;
-		// x1 <= y2 AND y1 <= x2  --> overlap
-		if (addr <= node->addr + node->size && node->addr <= addr + size) {
-			return REGION_FAIL;
-		}
-		n = n->next;
+// Probably to expand the heap
+int expand_right(region_node* node, uint32_t size) {
+	assert(IS_ALIGNED_4K(size));
+	region_node* neighbor = node->next;
+
+	if (node->vaddr + node->size + size > neighbor->vaddr - REGION_SAFETY) {
+		return REGION_FAIL;
 	}
+	node->size = node->size + size;
 	return REGION_GOOD;
 }
 
-/* Remove the region corresponding to addr
- * Returns -1 if that region couldn't be found
- *			0 if it worked
- * * * * * * * * * * * * * * * * * * * * * * * */
-int remove_region(region_list* reg_list, void* addr) {
-	// find the node first... grr not efficient
-	struct list_node* n = reg_list->regions->head;
-	while (n != NULL) {
-		region_node* node = n->data;
-		if (node->addr == addr) {
-			break;
-		}
-		n = n->next;
+int in_stack_region(region_node* node, vaddr_t vaddr) {
+	return (vaddr > node->prev->vaddr + node->prev->size + REGION_SAFETY);
+}
+
+/* Call this after the elf has been loaded to place the heap effectively */
+region_node* create_heap(region_list* region_list) {
+	region_node* stack = region_list->stack;
+	assert(stack != NULL);
+	region_node* prev = stack->prev;
+	assert(prev != NULL);
+
+	vaddr_t base_addr = prev->vaddr + prev->size + REGION_SAFETY;
+
+	region_node* heap =
+		add_region(region_list, base_addr, 0, seL4_CanWrite | seL4_CanWrite);
+
+	if (heap == NULL) {
+		return NULL;
 	}
-	int res = list_remove(reg_list->regions, n->data, compare_nodes);
-	printf("%d\n", res);
-	return REGION_GOOD;
+	region_list->heap = heap;
+	heap->name = "HEAP";
+	return heap;
 }
 
-static int compare_nodes(void* data1, void* data2) {
-	void* addr1 = ((region_node*)(data1))->addr;
-	void* addr2 = ((region_node*)(data2))->addr;
-	int val = (addr1 != addr2);
-	return val;
-}
-
-region_node* find_region(region_list* reg_list, void* addr) {
-	struct list_node* n = reg_list->regions->head;
-	while (n != NULL) {
-		region_node* node = n->data;
-		// x1 <= y2 AND y1 <= x2  --> overlap
-		if (addr >= node->addr && addr <= node->addr + node->size) {
-			return node;
-		}
-		n = n->next;
+void regions_print(region_list* regions) {
+	region_node* cur = regions->start;
+	while (cur) {
+		printf("0x%08x -> 0x%08x: perm: %08u, | %s\n", cur->vaddr,
+			   cur->vaddr + cur->size, cur->perm, cur->name);
+		cur = cur->next;
 	}
-	return REGION_FAIL;
-}
-
-void print_list(region_list* reg_list) {
-	list_foreach(reg_list->regions, print_node);
-}
-
-static int print_node(void* data) {
-	region_node* node = (region_node*)data;
-	printf("node && %p\n", data);
-	printf("addr %p\n", node->addr);
-	printf("size %d\n", node->size);
-	return 0;
 }

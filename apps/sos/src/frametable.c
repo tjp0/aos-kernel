@@ -1,22 +1,30 @@
 #include <assert.h>
 #include <cspace/cspace.h>
+#include <frametable.h>
 #include <mapping.h>
 #include <sel4/sel4.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ut_manager/ut.h>
+#include <utils/page.h>
 #include <vmem_layout.h>
-
 #define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
 #define PADDR_TO_FRAME_INDEX(x) (((unsigned int)x) >> seL4_PageBits)
 #define VADDR_TO_FRAME_INDEX(x) (PADDR_TO_FRAME_INDEX(x - FRAME_VSTART))
-#define FRAME_INDEX_TO_VADDR(x) (x << seL4_PageBits);
+#define FRAME_INDEX_TO_VADDR(x) ((x << seL4_PageBits) + FRAME_VSTART);
 
 #define FRAME_CACHE_SIZE 30
 #define FRAME_CACHE_HIGH_WATER 20
 #define FRAME_RESERVED 120
+
+// TODO: Fix memory leak
+// Fix memory reserved
+// fix to use findmem
+// Fix memory free
+// Fix vmem layout
 
 struct frame* frame_table = NULL;
 
@@ -24,16 +32,7 @@ uint32_t frame_count = 0;
 seL4_Word ft_size;
 seL4_Word ft_numframes = 0;
 
-enum frame_status { FRAME_INUSE, FRAME_UNTYPED, FRAME_FREE };
-
-struct frame {
-	enum frame_status status;
-	seL4_ARM_Page cap;
-};
-
-inline int frame_to_index(struct frame* frame) {
-	return ((frame - frame_table) / sizeof(struct frame));
-}
+inline int frame_to_index(struct frame* frame) { return frame - frame_table; }
 
 uint32_t frame_cache_tail = 0;
 void* frame_cache[FRAME_CACHE_SIZE];
@@ -118,7 +117,19 @@ void* frame_alloc(void) {
 			frame_cache_tail);
 	frame_table[VADDR_TO_FRAME_INDEX(new_frame)].status = FRAME_INUSE;
 
+	memset(new_frame, 0, PAGE_SIZE_4K);
 	return new_frame;
+}
+
+struct frame* get_frame(void* addr) {
+	struct frame* f = &frame_table[VADDR_TO_FRAME_INDEX(addr)];
+	assert(addr == frame_getvaddr(f));
+	return f;
+}
+
+void* frame_getvaddr(struct frame* frame) {
+	assert(&frame_table[frame_to_index(frame)] == frame);
+	return (void*)FRAME_INDEX_TO_VADDR(frame_to_index(frame));
 }
 
 void frame_free(void* vaddr) {
