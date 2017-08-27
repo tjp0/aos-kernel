@@ -276,6 +276,13 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	/* Retrieve boot info from seL4 */
 	_boot_info = seL4_GetBootInfo();
 	conditional_panic(!_boot_info, "Failed to retrieve boot info\n");
+
+	/* Initialise the untyped sub system and reserve memory for DMA */
+	err = ut_table_init(_boot_info);
+
+	conditional_panic(err, "Failed to initialise Untyped Table\n");
+
+	initialise_vmem_layout();
 	if (verbose > 0) {
 		print_bootinfo(_boot_info);
 
@@ -286,10 +293,6 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 		printf("DMA_VSTART:\t %p\n", (void*)DMA_VSTART);
 		printf("DMA_VEND:\t %p\n", (void*)DMA_VEND);
 	}
-
-	/* Initialise the untyped sub system and reserve memory for DMA */
-	err = ut_table_init(_boot_info);
-	conditional_panic(err, "Failed to initialise Untyped Table\n");
 	/* DMA uses a large amount of memory that will never be freed */
 	dma_addr = ut_steal_mem(DMA_SIZE_BITS);
 	conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");

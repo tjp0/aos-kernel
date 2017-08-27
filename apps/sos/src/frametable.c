@@ -12,9 +12,6 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
-// #define vaddr_to_frame_cell(x) (PADDR_TO_FRAME_INDEX(x - FRAME_VSTART))
-#define FRAME_INDEX_TO_VADDR(x) ((x << seL4_PageBits) + FRAME_VSTART);
-
 #define FRAME_CACHE_SIZE 30
 #define FRAME_CACHE_HIGH_WATER 20
 /* #define FRAME_RESERVED \
@@ -37,10 +34,6 @@
 struct frame* frame_table = NULL;
 
 uint32_t frame_count = 0;
-seL4_Word ft_size;
-seL4_Word ft_numframes = 0;
-seL4_Word lowest_address;
-seL4_Word highest_address;
 
 static inline struct frame* _paddr_to_frame_cell(seL4_Word paddr);
 static inline seL4_Word _frame_cell_to_paddr(struct frame* frame_table_pointer);
@@ -238,7 +231,7 @@ int frame_physical_alloc(void** vaddr) {
 	}
 
 	seL4_Word new_frame_addr = ut_alloc(seL4_PageBits);
-	printf("new untyped memory %p\n", (void*)new_frame_addr);
+	// printf("new untyped memory %p\n", (void*)new_frame_addr);
 
 	// sanity_check_frame_table(13371338);
 	assert(paddr_to_frame_cell(new_frame_addr) < &frame_table[ft_numframes]);
@@ -306,11 +299,11 @@ int frame_physical_free(struct frame* frame) {
 }
 
 static void cache_frames() {
-	sanity_check_frame_table(2121121);
+	// sanity_check_frame_table(2121121);
 	dprintf(2, "Caching frames\n");
 	while (frame_cache_tail < FRAME_CACHE_HIGH_WATER) {
 		void* new_frame;
-		sanity_check_frame_table(3333);
+		// sanity_check_frame_table(3333);
 		int err = frame_physical_alloc(&new_frame);
 		if (err) {
 			dprintf(0, "Unable to cache frame\n");
@@ -396,12 +389,6 @@ void frame_free(void* vaddr) {
 	// sanity_check_frame_table(0);
 }
 void ft_initialize(void) {
-	dprintf(0, "Initializing frame table of %u size\n", ft_size);
-
-	ut_find_memory(&lowest_address, &highest_address);
-	ft_numframes = ((highest_address - lowest_address) / PAGE_SIZE_4K);
-	ft_size = ft_numframes * sizeof(struct frame);
-
 	seL4_Word offset = 0;
 
 	while (offset < ft_size) {
@@ -476,6 +463,7 @@ static inline void check_stack_addr(void) {
 void recursive_allocate(int counter);
 
 void frame_test() {
+	printf("EVERYTHING MUST BE FINE HERE\n");
 	sanity_check_frame_table(1337);
 	printf("EVERYTHING MUST BE FINE HERE\n");
 	/* Allocate 10 pages and make sure you can touch them all */
@@ -483,18 +471,18 @@ void frame_test() {
 		/* Allocate a page */
 		int* vaddr;
 
-		sanity_check_frame_table((i * 4));
+		// sanity_check_frame_table((i * 4));
 		vaddr = frame_alloc();
-		sanity_check_frame_table((i * 4) + 1);
+		// sanity_check_frame_table((i * 4) + 1);
 		assert(vaddr != NULL);
 
 		/* Test you can touch the page */
 		*vaddr = 0x37 + i;
 		assert(*vaddr == 0x37 + i);
-		sanity_check_frame_table((i * 4) + 2);
+		// sanity_check_frame_table((i * 4) + 2);
 
 		printf("Page #%d allocated at %p\n", i, (void*)vaddr);
-		sanity_check_frame_table((i * 4) + 3);
+		// sanity_check_frame_table((i * 4) + 3);
 	}
 	printf("Test 1 complete\n");
 	/* Test that you never run out of memory if you always free frames. */
@@ -521,7 +509,9 @@ void frame_test() {
 	/* Test that you eventually run out of memory gracefully,
 	   and doesn't crash */
 	// int counter = 0;
+
 	recursive_allocate(0);
+
 	// while (1) {
 	// 	/* Allocate a page */
 	// 	int* vaddr;
@@ -543,7 +533,7 @@ void frame_test() {
 
 	// free all the memory
 }
-#define NUM_PAGE_PER_HIT 1000
+#define NUM_PAGE_PER_HIT 100
 void recursive_allocate(int counter) {
 	// sanity_check_frame_table(0);
 	volatile int puppies;
