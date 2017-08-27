@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syscall.h>
+#include <utils/endian.h>
 
 #include <sel4/sel4.h>
 
@@ -35,8 +36,22 @@ int sos_sys_write(int file, const char *buf, size_t nbyte) {
 void sos_sys_usleep(int msec) { SYSCALL_ARG1(SOS_SYSCALL_USLEEP, msec); }
 
 int64_t sos_sys_time_stamp(void) {
-	assert(!"You need to implement this");
-	return -1;
+	struct ipc_command ipc = ipc_create();
+	ipc_packi(&ipc, SOS_SYSCALL_TIMESTAMP);
+	int err = ipc_call(&ipc, SOS_IPC_EP_CAP);
+	if (err < 0) {
+		return -1;
+	}
+
+	uint32_t a;
+	uint32_t b;
+
+	ipc_unpacki(&ipc, &a);
+	ipc_unpacki(&ipc, &b);
+
+	uint64_t ret;
+	join32to64(b, a, &ret);
+	return (int64_t)ret;
 }
 size_t sos_debug_print(const void *vData, size_t count) {
 	size_t i;

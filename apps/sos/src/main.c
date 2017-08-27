@@ -40,6 +40,7 @@
 #include <syscall/syscall_memory.h>
 #include <syscall/syscall_time.h>
 #include <utils/arith.h>
+#include <utils/endian.h>
 #include <utils/picoro.h>
 #include "test_timer.h"
 #define verbose 0
@@ -102,6 +103,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
 	unsigned int ret2 = 0;
 	unsigned int ret3 = 0;
 	unsigned int ret4 = 0;
+	int64_t temp64 = 0;
 	ipc_unpacki(&ipc, &arg1);
 	ipc_unpacki(&ipc, &arg2);
 	ipc_unpacki(&ipc, &arg3);
@@ -120,6 +122,10 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		} break;
 		case SOS_SYSCALL_USLEEP: {
 			err = syscall_usleep(process, arg1);
+		} break;
+		case SOS_SYSCALL_TIMESTAMP: {
+			err = syscall_time_stamp(process, &temp64);
+			split64to32(temp64, &ret1, &ret2);
 		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
@@ -377,7 +383,7 @@ int main(void) {
 				badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
 
 	// test_timers();
-	register_timer(1000 * 1000, &simple_timer_callback, NULL);
+	// register_timer(1000 * 1000, &simple_timer_callback, NULL);
 
 	// frame_test();
 
