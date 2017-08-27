@@ -271,6 +271,7 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	seL4_Word dma_addr;
 	seL4_Word low, high;
 	int err;
+	printf("STACK %p\n", &dma_addr);
 
 	/* Retrieve boot info from seL4 */
 	_boot_info = seL4_GetBootInfo();
@@ -293,8 +294,6 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	dma_addr = ut_steal_mem(DMA_SIZE_BITS);
 	conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");
 
-	seL4_Word ft_base = ft_early_initialize(_boot_info);
-
 	/* find available memory */
 	ut_find_memory(&low, &high);
 
@@ -310,7 +309,8 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	err = dma_init(dma_addr, DMA_SIZE_BITS);
 	conditional_panic(err, "Failed to intiialise DMA memory\n");
 
-	ft_late_initialize(ft_base);
+	ft_initialize();
+	frame_test();
 
 	/* Initialiase other system compenents here */
 
