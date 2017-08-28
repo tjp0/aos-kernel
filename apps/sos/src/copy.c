@@ -91,7 +91,11 @@ int64_t copy_sos2vspace(void* src, vaddr_t dest_vaddr, struct vspace* vspace,
 		copy_len = len > PAGE_SIZE_4K ? PAGE_SIZE_4K : len;
 		if (copy_sos2vspace_withinpage(src, dest_vaddr, vspace, copy_len,
 									   flags) < 0) {
-			return -1;
+			if (flags & COPY_RETURNWRITTEN) {
+				return start_len;
+			} else {
+				return -1;
+			}
 		}
 		len -= copy_len;
 		src += copy_len;

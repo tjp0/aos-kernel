@@ -44,6 +44,9 @@ int main(void) {
 		assert(array[(int)i] == i);
 	}
 
+	printf("Running buf test\n");
+	test_buffers();
+
 	do {
 		printf("task:\tHello world, I'm\ttty_test!\n");
 		// printf("World hole");

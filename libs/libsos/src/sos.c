@@ -19,18 +19,15 @@
 #include <sel4/sel4.h>
 
 int sos_sys_open(const char *path, fmode_t mode) {
-	// assert(!"You need to implement this");
-	return 0;
+	return SYSCALL_ARG2(SOS_SYSCALL_OPEN, (int)path, (int)mode);
 }
 
 int sos_sys_read(int file, char *buf, size_t nbyte) {
-	// assert(!"You need to implement this");
-	return 0;
+	return SYSCALL_ARG3(SOS_SYSCALL_READ, file, (int)buf, nbyte);
 }
 
 int sos_sys_write(int file, const char *buf, size_t nbyte) {
-	assert(!"You need to implement this");
-	return -1;
+	return SYSCALL_ARG3(SOS_SYSCALL_WRITE, file, (int)buf, nbyte);
 }
 
 void sos_sys_usleep(int msec) { SYSCALL_ARG1(SOS_SYSCALL_USLEEP, msec); }

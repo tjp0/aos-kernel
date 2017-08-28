@@ -123,6 +123,9 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 									   vaddr_t address, uint8_t permissions) {
 	assert(pd != NULL);
 	address = PAGE_ALIGN_4K(address);
+	if (address == 0) {
+		return NULL;
+	}
 	dprintf(2, "Creating page at addr: 0x%x\n", address);
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(address)];
 	dprintf(2, "New page 1st index: %u\n", vaddr_to_ptsoffset(address));

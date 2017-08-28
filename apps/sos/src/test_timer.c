@@ -8,9 +8,11 @@
 
 #include <autoconf.h>
 #include <clock/clock.h>
-#include <sys/debug.h>
 
 #include "test_timer.h"
+
+#define verbose 0
+#include <sys/debug.h>
 
 void simple_timer_callback(uint32_t id, void *data) {
 	//	printf("I am Timer %d, who was created with %p\n", id, data);

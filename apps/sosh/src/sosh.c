@@ -376,7 +376,7 @@ int main(void) {
 		if (argc == 0) {
 			continue;
 		}
-
+		printf("Trying to run command %s\n", argv[0]);
 		found = 0;
 
 		for (i = 0; i < sizeof(commands) / sizeof(struct command); i++) {

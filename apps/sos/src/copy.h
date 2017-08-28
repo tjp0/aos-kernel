@@ -4,6 +4,7 @@
 #include <typedefs.h>
 #define COPY_INSTRUCTIONFLUSH 0x1
 #define COPY_VSPACE2SOS 0x2
+#define COPY_RETURNWRITTEN 0x4
 
 int64_t copy_sos2vspace(void* src, vaddr_t dest_vaddr, struct vspace* vspace,
 						int64_t len, uint32_t flags);

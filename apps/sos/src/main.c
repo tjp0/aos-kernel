@@ -32,6 +32,7 @@
 
 #include <autoconf.h>
 #include <copy.h>
+#include <devices/devices.h>
 #include <frametable.h>
 #include <process.h>
 #include <region_manager.h>
@@ -44,7 +45,7 @@
 #include <utils/picoro.h>
 #include <utils/stack.h>
 #include "test_timer.h"
-#define verbose 1
+#define verbose 3
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -119,7 +120,8 @@ void handle_syscall(seL4_Word badge, int num_args) {
 	reply_cap = cspace_save_reply_cap(cur_cspace);
 	assert(reply_cap != CSPACE_NULL);
 	/* Process system call */
-	dprintf(2, "SYSCALL: %d\n", syscall_number);
+	dprintf(2, "SYSCALL: %d with args: (%08x %08x %08x %08x)\n", syscall_number,
+			arg1, arg2, arg3, arg4);
 	switch (syscall_number) {
 		case SOS_SYSCALL_SERIALWRITE: {
 			err = syscall_serialwrite(process, arg1, arg2, &ret1);
@@ -134,6 +136,15 @@ void handle_syscall(seL4_Word badge, int num_args) {
 			err = syscall_time_stamp(process, &temp64);
 			split64to32(temp64, &ret1, &ret2);
 		} break;
+		case SOS_SYSCALL_OPEN: {
+			err = syscall_open(process, arg1, arg2);
+		} break;
+		case SOS_SYSCALL_READ: {
+			err = syscall_read(process, arg1, arg2, arg3);
+		} break;
+		case SOS_SYSCALL_WRITE: {
+			err = syscall_write(process, arg1, arg2, arg3);
+		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);
@@ -143,6 +154,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
 			return;
 		}
 	}
+	dprintf(2,
+			"SYSCALL RET: %d with values: (err: %08x, args %08x %08x %08x)\n",
+			syscall_number, err, ret1, ret2, ret3, ret4);
 
 	/* Respond to the syscall */
 	ipc = ipc_create();
@@ -169,7 +183,7 @@ void* handle_event(void* e) {
 	seL4_Word label = event->label;
 	seL4_MessageInfo_t message = event->message;
 
-	dprintf(2, "SOS activated\n");
+	dprintf(3, "SOS activated\n");
 	if (badge & IRQ_EP_BADGE) {
 		/* Interrupt */
 		if (badge & IRQ_BADGE_NETWORK) {
@@ -196,7 +210,7 @@ void* handle_event(void* e) {
 	} else {
 		printf("Rootserver got an unknown message\n");
 	}
-	dprintf(2, "Coro complete\n");
+	dprintf(3, "Coro complete\n");
 	return 0;
 }
 
@@ -407,16 +421,15 @@ static void sos_main(void) {
 	/* Initialise the network hardware */
 	network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 
-	global_serial = serial_init();
-
 	start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1),
 				badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
 
+	conditional_panic(serial_dev_init() < 0, "Serial init failed");
 	// test_timers();
 	// register_timer(1000 * 1000, &simple_timer_callback, NULL);
 
-	printf("Running frame test\n");
-	frame_test();
+	// printf("Running frame test\n");
+	// frame_test();
 
 	/* Start the user application */
 	start_first_process("First Process", _sos_ipc_ep_cap);

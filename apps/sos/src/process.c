@@ -44,6 +44,7 @@ struct process* process_create(char* app_name, seL4_CPtr fault_ep) {
 		return NULL;
 	}
 
+	memset(process, 0, sizeof(struct process));
 	/* Create a VSpace */
 	process->vroot_addr = ut_alloc(seL4_PageDirBits);
 	conditional_panic(!process->vroot_addr, "No memory for new Page Directory");
