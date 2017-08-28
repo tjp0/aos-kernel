@@ -308,10 +308,18 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	seL4_Word dma_addr;
 	seL4_Word low, high;
 	int err;
+	printf("STACK %p\n", &dma_addr);
 
 	/* Retrieve boot info from seL4 */
 	_boot_info = seL4_GetBootInfo();
 	conditional_panic(!_boot_info, "Failed to retrieve boot info\n");
+
+	/* Initialise the untyped sub system and reserve memory for DMA */
+	err = ut_table_init(_boot_info);
+
+	conditional_panic(err, "Failed to initialise Untyped Table\n");
+
+	initialise_vmem_layout();
 	if (verbose > 0) {
 		print_bootinfo(_boot_info);
 
@@ -322,15 +330,9 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 		printf("DMA_VSTART:\t %p\n", (void*)DMA_VSTART);
 		printf("DMA_VEND:\t %p\n", (void*)DMA_VEND);
 	}
-
-	/* Initialise the untyped sub system and reserve memory for DMA */
-	err = ut_table_init(_boot_info);
-	conditional_panic(err, "Failed to initialise Untyped Table\n");
 	/* DMA uses a large amount of memory that will never be freed */
 	dma_addr = ut_steal_mem(DMA_SIZE_BITS);
 	conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");
-
-	seL4_Word ft_base = ft_early_initialize(_boot_info);
 
 	/* find available memory */
 	ut_find_memory(&low, &high);
@@ -347,7 +349,8 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	err = dma_init(dma_addr, DMA_SIZE_BITS);
 	conditional_panic(err, "Failed to intiialise DMA memory\n");
 
-	ft_late_initialize(ft_base);
+	ft_initialize();
+	frame_test();
 
 	/* Initialiase other system compenents here */
 
@@ -385,10 +388,10 @@ int main(void) {
 	// test_timers();
 	// register_timer(1000 * 1000, &simple_timer_callback, NULL);
 
-	// frame_test();
+	frame_test();
 
 	/* Start the user application */
-	start_first_process("First Process", _sos_ipc_ep_cap);
+	// start_first_process("First Process", _sos_ipc_ep_cap);
 
 	/* Wait on synchronous endpoint for IPC */
 	dprintf(0, "\nSOS entering syscall loop\n");

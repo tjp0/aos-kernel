@@ -1,7 +1,7 @@
 /*
  * Test the binary heap data structure
  * by jordan
-*/
+ */
 
 #include <assert.h>
 #include <stdio.h>
