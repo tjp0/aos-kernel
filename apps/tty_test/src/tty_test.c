@@ -32,9 +32,6 @@
 #include "ttyout.h"
 
 int main(void) {
-	/* initialise communication */
-
-	pt_test();
 	char* array = alloca(1000);
 
 	for (char i = 0; i < 255; i++) {
@@ -43,6 +40,8 @@ int main(void) {
 	for (char i = 0; i < 255; i++) {
 		assert(array[(int)i] == i);
 	}
+	printf("Running malloc test\n");
+	pt_test();
 
 	printf("Running buf test\n");
 	test_buffers();

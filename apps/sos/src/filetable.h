@@ -11,6 +11,7 @@ struct fd {
 					size_t length);
 	int (*dev_close)(struct fd* fd);
 	void* data;
+	int flags;
 };
 
 struct fd_table {

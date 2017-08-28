@@ -70,7 +70,6 @@ long sys_mmap2(va_list ap) {
 	(void)offset;
 	assert(!"not implemented");
 	*/
-	printf("Oh noe");
 	return -ENOMEM;
 }
 
