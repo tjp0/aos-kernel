@@ -57,7 +57,7 @@ struct process* process_create(char* app_name, seL4_CPtr fault_ep) {
 
 	process->vspace.pagetable = pd_create(pd_cap);
 	init_region_list(&process->vspace.regions);
-	dprintf(0, "*** Regions allocated\n");
+	dprintf(0, "*** Regions allocated: %p\n", process->vspace.regions);
 
 	/* Create a simple 1 level CSpace */
 	process->croot = cspace_create(1);
@@ -144,9 +144,10 @@ struct process* process_create(char* app_name, seL4_CPtr fault_ep) {
 	/* Start the new process */
 	memset(&context, 0, sizeof(context));
 	context.pc = elf_getEntryPoint(elf_base);
-	/* The stack pointer must be aligned for data access */
-	context.sp = ALIGN_DOWN(stack_region->vaddr + stack_region->size - 1,
-							sizeof(seL4_Word));
+	/* The stack pointer must be aligned for data access. ARM uses 8 byte stack
+	 * alignment
+	 */
+	context.sp = ALIGN_DOWN(stack_region->vaddr + stack_region->size - 1, 8);
 
 	dprintf(0, "ELF ENTRY POINT IS %x\n", context.pc);
 	dprintf(0, "*** PROCESS STARTING ***\n");

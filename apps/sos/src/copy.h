@@ -2,7 +2,7 @@
 #include <process.h>
 #include <stdint.h>
 #include <typedefs.h>
-#define COPY_FLUSH 0x1
+#define COPY_INSTRUCTIONFLUSH 0x1
 #define COPY_VSPACE2SOS 0x2
 
 int64_t copy_sos2vspace(void* src, vaddr_t dest_vaddr, struct vspace* vspace,

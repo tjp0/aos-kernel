@@ -15,6 +15,7 @@ int syscall_serialwrite(struct process* process, vaddr_t ptr, size_t length,
 	length = MIN(sizeof(array) - 1, length);
 	copy_vspace2sos(ptr, array, &process->vspace, length, 0);
 	array[length] = '\0';
+	dprintf(2, "Vaddr is %08x\n", ptr);
 	dprintf(2, "Length is %u\n", length);
 	dprintf(2, "Printing string %s\n", array);
 	serial_send(global_serial, array, length);

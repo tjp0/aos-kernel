@@ -171,8 +171,8 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 	if (vcap == 0) {
 		return VM_FAIL;
 	}
-	err =
-		seL4_ARM_Page_Map(vcap, pd->seL4_pd, page->address, seL4_AllRights, 0);
+	err = seL4_ARM_Page_Map(vcap, pd->seL4_pd, page->address, seL4_AllRights,
+							seL4_ARM_Default_VMAttributes);
 
 	if (err) {
 		dprintf(0, "Failed to map page in, err code %d\n", err);

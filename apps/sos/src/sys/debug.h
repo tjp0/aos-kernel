@@ -13,7 +13,7 @@
 
 #include <stdio.h>
 
-void plogf(const char *msg, ...);
+void plogf(const char* msg, ...);
 
 #define _dprintf(v, col, args...) \
 	do {                          \
@@ -26,7 +26,10 @@ void plogf(const char *msg, ...);
 
 #define dprintf(v, ...) _dprintf(v, "\033[22;33m", __VA_ARGS__)
 
-#define dprint_fault(a, b) {if (a < verbose) print_fault(b);}
+#define dprint_fault(a, b)               \
+	{                                    \
+		if (a < verbose) print_fault(b); \
+	}
 
 #define WARN(...) _dprintf(-1, "\033[1;31mWARNING: ", __VA_ARGS__)
 
@@ -34,4 +37,11 @@ void plogf(const char *msg, ...);
 	printf("\033[22;34m %s:%d -> %s not implemented\n\033[;0m", __FILE__, \
 		   __LINE__, __func__);
 
+void _tracer(const char* file, const int line, const char* function);
+#define trace(v)                                   \
+	do {                                           \
+		if ((v) < verbose) {                       \
+			_tracer(__FILE__, __LINE__, __func__); \
+		}                                          \
+	} while (0)
 #endif /* _DEBUG_H_ */

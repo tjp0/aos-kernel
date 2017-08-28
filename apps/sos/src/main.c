@@ -44,7 +44,7 @@
 #include <utils/picoro.h>
 #include <utils/stack.h>
 #include "test_timer.h"
-#define verbose 5
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -119,6 +119,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
 	reply_cap = cspace_save_reply_cap(cur_cspace);
 	assert(reply_cap != CSPACE_NULL);
 	/* Process system call */
+	dprintf(2, "SYSCALL: %d\n", syscall_number);
 	switch (syscall_number) {
 		case SOS_SYSCALL_SERIALWRITE: {
 			err = syscall_serialwrite(process, arg1, arg2, &ret1);
@@ -418,7 +419,7 @@ static void sos_main(void) {
 	frame_test();
 
 	/* Start the user application */
-	// start_first_process("First Process", _sos_ipc_ep_cap);
+	start_first_process("First Process", _sos_ipc_ep_cap);
 
 	/* Wait on synchronous endpoint for IPC */
 	dprintf(0, "\nSOS entering syscall loop\n");

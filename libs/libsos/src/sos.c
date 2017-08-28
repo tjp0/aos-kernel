@@ -50,7 +50,7 @@ int64_t sos_sys_time_stamp(void) {
 	ipc_unpacki(&ipc, &b);
 
 	uint64_t ret;
-	join32to64(b, a, &ret);
+	join32to64(a, b, &ret);
 	return (int64_t)ret;
 }
 size_t sos_debug_print(const void *vData, size_t count) {

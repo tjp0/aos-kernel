@@ -53,6 +53,7 @@ int init_region_list(region_list** reg_list) {
 	};
 
 	list->start = NULL;
+	list->heap = NULL;
 	int err = create_initial_regions(list);
 
 	if (err == REGION_FAIL) {

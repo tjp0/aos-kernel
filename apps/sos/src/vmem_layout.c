@@ -79,7 +79,7 @@ void initialise_vmem_layout(void) {
 }
 
 void print_vmem_layout(void) {
-	printf("\n--------- ---- ---------- | --------------\n");
+	printf("\n---------- -- ---------- | --------------\n");
 	printf("0x00000000 -> 0x%08x | ELF Reserved\n", (unsigned int)&__end__);
 	printf("0x%08x -> 0x%08x | Heap\n", (unsigned int)heap_vstart(),
 		   (unsigned int)heap_vend());
@@ -89,5 +89,5 @@ void print_vmem_layout(void) {
 	printf("0x%08x -> 0x%08x | DMA Area\n", DMA_VSTART, DMA_VEND);
 	printf("0x%08x -> 0x%08x | Kernel stack\n", KERNEL_STACK_VSTART,
 		   KERNEL_STACK_VEND);
-	printf("--------- ---- ---------- | --------------\n");
+	printf("---------- -- ---------- | --------------\n");
 }

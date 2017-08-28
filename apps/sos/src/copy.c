@@ -42,20 +42,26 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 	/* Some of the argument names here are a bit off, dst/src get swapped if the
 	 * copy to
 	 * sos arg is set */
+	seL4_ARM_Page_CleanInvalidate_Data(pte->frame->cap, 0, PAGE_SIZE_4K);
+	seL4_ARM_Page_CleanInvalidate_Data(pte->cap, 0, PAGE_SIZE_4K);
 
 	if (!(flags & COPY_VSPACE2SOS)) {
 		dprintf(0, "Copying from %p in KS to %p in US (%p in KS)\n", src,
 				(void*)dest_vaddr, dst);
 		memcpy(dst, src, len);
 
-		if (flags & COPY_FLUSH) {
+		if (flags & COPY_INSTRUCTIONFLUSH) {
 			seL4_ARM_Page_Unify_Instruction(pte->frame->cap, 0, PAGE_SIZE_4K);
+			seL4_ARM_Page_Unify_Instruction(pte->cap, 0, PAGE_SIZE_4K);
 		}
 	} else {
 		dprintf(0, "Copying from %p in US (%p in KS) to %p in KS, length %u\n",
 				dst, (void*)dest_vaddr, src, len);
 		memcpy(src, dst, len);
 	}
+
+	seL4_ARM_Page_CleanInvalidate_Data(pte->frame->cap, 0, PAGE_SIZE_4K);
+	seL4_ARM_Page_CleanInvalidate_Data(pte->cap, 0, PAGE_SIZE_4K);
 
 	dprintf(0, "Copy complete\n");
 	return 0;

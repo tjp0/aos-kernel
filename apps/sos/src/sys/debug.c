@@ -10,11 +10,16 @@
 
 #include "debug.h"
 #include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
 
-void plogf(const char *msg, ...) {
+void plogf(const char* msg, ...) {
 	va_list alist;
 
 	va_start(alist, msg);
 	vprintf(msg, alist);
 	va_end(alist);
+}
+void _tracer(const char* file, const int line, const char* function) {
+	printf("trace: <%s>:%u | %s\n", function, line, file);
 }

@@ -20,11 +20,6 @@
 #define DEBUG_VALUE 13210387
 #define HEAVY_VETTING
 
-#pragma GCC push_options
-
-/* This library and the optimizer don't seem to agree */
-#pragma GCC optimize("-O1")
-
 // TODO: Fix memory leak
 // Fix memory reserved
 // fix to use findmem
@@ -238,7 +233,7 @@ int frame_physical_alloc(void** vaddr) {
 
 	err = map_page(new_frame_cap, seL4_CapInitThreadPD,
 				   (seL4_Word)paddr_to_vaddr(new_frame_addr), seL4_AllRights,
-				   seL4_ARM_ExecuteNever | seL4_ARM_PageCacheable);
+				   seL4_ARM_Default_VMAttributes);
 
 	conditional_panic(err, "Failed to map frame into SOS");
 	kassert(new_frame_cap != 0);
@@ -268,7 +263,7 @@ int frame_physical_free(struct frame* frame) {
 
 static void cache_frames() {
 	dprintf(2, "Caching frames\n");
-	while (frame_cache_tail < FRAME_CACHE_HIGH_WATER) {
+	while (frame_cache_tail < FRAME_CACHE_HIGH_WATER - 1) {
 		void* new_frame;
 		// sanity_check_frame_table(3333);
 		int err = frame_physical_alloc(&new_frame);
@@ -355,8 +350,7 @@ void ft_initialize(void) {
 										seL4_PageBits, cur_cspace, &new_frame);
 		conditional_panic(err, "Frametable failed to retype memory at init");
 		err = map_page(new_frame, seL4_CapInitThreadPD, (seL4_Word)vaddr,
-					   seL4_AllRights,
-					   seL4_ARM_ExecuteNever | seL4_ARM_PageCacheable);
+					   seL4_AllRights, seL4_ARM_Default_VMAttributes);
 		conditional_panic(err, "Frametable failed to map memory at init");
 
 		offset += (1 << seL4_PageBits);
@@ -587,5 +581,3 @@ void recursive_allocate(int counter) {
 	free(addrs);
 	// sanity_check_frame_table(0);
 }
-
-#pragma GCC pop_options

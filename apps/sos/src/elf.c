@@ -83,7 +83,8 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 	assert(node != NULL);
 	assert(file_size <= segment_size);
 
-	if (copy_sos2vspace(src, dst, vspace, file_size, 1) < 0) {
+	if (copy_sos2vspace(src, dst, vspace, file_size, COPY_INSTRUCTIONFLUSH) <
+		0) {
 		return -1;
 	}
 	dprintf(0, "Initial data copied to region at %p\n", (void *)dst);

@@ -33,8 +33,8 @@
 
 int main(void) {
 	/* initialise communication */
-	ttyout_init();
 
+	pt_test();
 	char* array = alloca(1000);
 
 	for (char i = 0; i < 255; i++) {
@@ -45,10 +45,12 @@ int main(void) {
 	}
 
 	do {
-		// printf("task:\tHello world, I'm\ttty_test!\n");
+		printf("task:\tHello world, I'm\ttty_test!\n");
+		// printf("World hole");
 		int64_t microseconds = sos_sys_time_stamp();
 		int64_t seconds = microseconds / (1000 * 1000);
-		printf("Recieved timestamp: %lld %lld\n", microseconds, seconds);
+		printf("Recieved timestamp: %lld (%lld seconds since boot)\n",
+			   microseconds, seconds);
 		sos_sys_usleep(1000);  // Implement this as a syscall
 	} while (1);
 
