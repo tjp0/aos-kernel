@@ -42,8 +42,9 @@
 #include <utils/arith.h>
 #include <utils/endian.h>
 #include <utils/picoro.h>
+#include <utils/stack.h>
 #include "test_timer.h"
-#define verbose 0
+#define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -80,6 +81,11 @@ struct serial* global_serial;
 
 seL4_CPtr _sos_ipc_ep_cap;
 seL4_CPtr _sos_interrupt_ep_cap;
+
+static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
+static void sos_main(void);
+static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
+static void* _sos_late_init(void* unusedarg);
 
 /**
  * NFS mount point
@@ -281,6 +287,99 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
 	tty_test_process = process;
 }
 
+static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
+	seL4_CPtr badged_cap =
+		cspace_mint_cap(cur_cspace, cur_cspace, ep, seL4_AllRights,
+						seL4_CapData_Badge_new(badge | IRQ_EP_BADGE));
+	conditional_panic(!badged_cap, "Failed to allocate badged cap");
+	return badged_cap;
+}
+
+/*
+ * Main entry point - called by crt.
+ */
+int main(void) {
+#ifdef SEL4_DEBUG_KERNEL
+	seL4_DebugNameThread(seL4_CapInitThreadTCB, "SOS:root");
+#endif
+
+	dprintf(0, "\nSOS Starting...\n");
+
+	_sos_early_init(&_sos_ipc_ep_cap, &_sos_interrupt_ep_cap);
+	panic("This should never be reached");
+	/* Not reached */
+	return 0;
+}
+
+/* Early initialization, before we switch stacks */
+static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
+	seL4_Word dma_addr;
+	seL4_Word low, high;
+	int err;
+
+	/* Retrieve boot info from seL4 */
+	_boot_info = seL4_GetBootInfo();
+	conditional_panic(!_boot_info, "Failed to retrieve boot info\n");
+
+	/* Initialise the untyped sub system and reserve memory for DMA */
+	err = ut_table_init(_boot_info);
+
+	conditional_panic(err, "Failed to initialise Untyped Table\n");
+
+	initialise_vmem_layout();
+	if (verbose > 0) {
+		print_bootinfo(_boot_info);
+		print_vmem_layout();
+	}
+	/* DMA uses a large amount of memory that will never be freed */
+	dma_addr = ut_steal_mem(DMA_SIZE_BITS);
+	conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");
+
+	/* find available memory */
+	ut_find_memory(&low, &high);
+
+	/* Initialise the untyped memory allocator */
+	ut_allocator_init(low, high);
+
+	/* Initialise the cspace manager */
+	err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate, malloc,
+									 free);
+	conditional_panic(err, "Failed to initialise the c space\n");
+
+	/* Initialise DMA memory */
+	err = dma_init(dma_addr, DMA_SIZE_BITS);
+	conditional_panic(err, "Failed to intiialise DMA memory\n");
+
+	/* Initialise the new kernel stack */
+	for (seL4_Word i = KERNEL_STACK_VSTART; i < KERNEL_STACK_VEND;
+		 i += PAGE_SIZE_4K) {
+		seL4_Word new_frame;
+		seL4_Word paddr = ut_alloc(seL4_PageBits);
+		conditional_panic(paddr == 0,
+						  "Not enough memory to allocate kernel stack");
+		int err = cspace_ut_retype_addr(paddr, seL4_ARM_SmallPageObject,
+										seL4_PageBits, cur_cspace, &new_frame);
+		conditional_panic(err, "Kernel stack failed to retype memory at init");
+		err = map_page(new_frame, seL4_CapInitThreadPD, i, seL4_AllRights,
+					   seL4_ARM_ExecuteNever | seL4_ARM_PageCacheable);
+		conditional_panic(err, "Kernel stack failed to map memory at init");
+	}
+	utils_run_on_stack((void*)KERNEL_STACK_VEND, _sos_late_init, NULL);
+}
+
+/* After the stack is moved, finish initialization */
+static void* _sos_late_init(void* unusedarg) {
+	(void)unusedarg;
+
+	ft_initialize();
+
+	/* Initialiase other system compenents here */
+	_sos_ipc_init(&_sos_ipc_ep_cap, &_sos_interrupt_ep_cap);
+	sos_main();  // Should never return
+	panic("We should not be here");
+	return NULL;
+}
+
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	seL4_Word ep_addr, aep_addr;
 	int err;
@@ -303,80 +402,7 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 								cur_cspace, ipc_ep);
 	conditional_panic(err, "Failed to allocate c-slot for IPC endpoint");
 }
-
-static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
-	seL4_Word dma_addr;
-	seL4_Word low, high;
-	int err;
-	printf("STACK %p\n", &dma_addr);
-
-	/* Retrieve boot info from seL4 */
-	_boot_info = seL4_GetBootInfo();
-	conditional_panic(!_boot_info, "Failed to retrieve boot info\n");
-
-	/* Initialise the untyped sub system and reserve memory for DMA */
-	err = ut_table_init(_boot_info);
-
-	conditional_panic(err, "Failed to initialise Untyped Table\n");
-
-	initialise_vmem_layout();
-	if (verbose > 0) {
-		print_bootinfo(_boot_info);
-
-		printf("\nFRAME_VSTART:\t %p\n", (void*)FRAME_VSTART);
-		printf("FRAME_VEND:\t %p\n", (void*)FRAME_VEND);
-		printf("FRAME_TABLE_VSTART:\t %p\n", (void*)FRAME_TABLE_VSTART);
-		printf("FRAME_TABLE_VEND:\t %p\n", (void*)FRAME_TABLE_VEND);
-		printf("DMA_VSTART:\t %p\n", (void*)DMA_VSTART);
-		printf("DMA_VEND:\t %p\n", (void*)DMA_VEND);
-	}
-	/* DMA uses a large amount of memory that will never be freed */
-	dma_addr = ut_steal_mem(DMA_SIZE_BITS);
-	conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");
-
-	/* find available memory */
-	ut_find_memory(&low, &high);
-
-	/* Initialise the untyped memory allocator */
-	ut_allocator_init(low, high);
-
-	/* Initialise the cspace manager */
-	err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate, malloc,
-									 free);
-	conditional_panic(err, "Failed to initialise the c space\n");
-
-	/* Initialise DMA memory */
-	err = dma_init(dma_addr, DMA_SIZE_BITS);
-	conditional_panic(err, "Failed to intiialise DMA memory\n");
-
-	ft_initialize();
-	frame_test();
-
-	/* Initialiase other system compenents here */
-
-	_sos_ipc_init(ipc_ep, async_ep);
-}
-
-static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
-	seL4_CPtr badged_cap =
-		cspace_mint_cap(cur_cspace, cur_cspace, ep, seL4_AllRights,
-						seL4_CapData_Badge_new(badge | IRQ_EP_BADGE));
-	conditional_panic(!badged_cap, "Failed to allocate badged cap");
-	return badged_cap;
-}
-
-/*
- * Main entry point - called by crt.
- */
-int main(void) {
-#ifdef SEL4_DEBUG_KERNEL
-	seL4_DebugNameThread(seL4_CapInitThreadTCB, "SOS:root");
-#endif
-
-	dprintf(0, "\nSOS Starting...\n");
-
-	_sos_init(&_sos_ipc_ep_cap, &_sos_interrupt_ep_cap);
-
+static void sos_main(void) {
 	/* Initialise the network hardware */
 	network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 
@@ -388,6 +414,7 @@ int main(void) {
 	// test_timers();
 	// register_timer(1000 * 1000, &simple_timer_callback, NULL);
 
+	printf("Running frame test\n");
 	frame_test();
 
 	/* Start the user application */
@@ -398,9 +425,4 @@ int main(void) {
 
 	coro coro_event_loop = coroutine(event_loop);
 	resume(coro_event_loop, (void*)_sos_ipc_ep_cap);
-
-	panic(
-		"Main event loop coroutine ended. We don't support shutting down  :(");
-	/* Not reached */
-	return 0;
 }

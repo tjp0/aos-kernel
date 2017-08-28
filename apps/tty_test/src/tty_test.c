@@ -47,8 +47,8 @@ int main(void) {
 	do {
 		// printf("task:\tHello world, I'm\ttty_test!\n");
 		int64_t microseconds = sos_sys_time_stamp();
-		// int64_t seconds = microseconds / (1000*1000);
-		printf("Recieved timestamp: %lld\n", microseconds);
+		int64_t seconds = microseconds / (1000 * 1000);
+		printf("Recieved timestamp: %lld %lld\n", microseconds, seconds);
 		sos_sys_usleep(1000);  // Implement this as a syscall
 	} while (1);
 

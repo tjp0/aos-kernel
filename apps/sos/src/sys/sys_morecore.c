@@ -34,6 +34,9 @@ static uintptr_t morecore_top =
    returns 0 if failure, returns newbrk if success.
 */
 
+void* heap_vstart(void) { return &morecore_area; }
+void* heap_vend(void) { return &morecore_area[MORECORE_AREA_BYTE_SIZE]; }
+
 long sys_brk(va_list ap) {
 	uintptr_t ret;
 	uintptr_t newbrk = va_arg(ap, uintptr_t);
@@ -54,7 +57,7 @@ long sys_brk(va_list ap) {
    implementation
    here to support that. We make a bunch of assumptions in the process */
 long sys_mmap2(va_list ap) {
-	void *addr = va_arg(ap, void *);
+	void* addr = va_arg(ap, void*);
 	size_t length = va_arg(ap, size_t);
 	int prot = va_arg(ap, int);
 	int flags = va_arg(ap, int);

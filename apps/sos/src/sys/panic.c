@@ -22,6 +22,6 @@ inline void __conditional_panic(int condition, const char *message,
 	if (condition) {
 		_dprintf(0, "\033[1;31m", "\nPANIC %s-%s:%d %s\n\n", file, func, line,
 				 message);
-		abort();
+		sel4_abort();
 	}
 }

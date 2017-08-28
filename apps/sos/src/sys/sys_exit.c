@@ -11,17 +11,20 @@
 #include <sel4/sel4.h>
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <vmem_layout.h>
 #include "execinfo.h" /*for backtrace()*/
 
-static void sel4_abort(void) {
+void sel4_abort(void) {
+	printf("\n\n\n\n\n\n");
 	printf("seL4 root server aborted\n");
+
+	print_vmem_layout();
 
 	/* Printout backtrace*/
 	void *array[10] = {NULL};
 	int size = 0;
 
-	size = backtrace(array, 10);
+	size = backtrace(array, 4);
 	if (size) {
 		printf("Backtracing stack PCs:  ");
 

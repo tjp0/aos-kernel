@@ -7,6 +7,7 @@
 enum frame_status { GARBAGE, FRAME_INUSE, FRAME_UNTYPED, FRAME_FREE };
 
 struct frame {
+	int debug_check;
 	enum frame_status status;
 	seL4_ARM_Page cap;
 };

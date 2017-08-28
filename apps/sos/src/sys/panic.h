@@ -22,4 +22,5 @@
 void __conditional_panic(int condition, const char *message, const char *file,
 						 const char *func, int line);
 
+void sel4_abort(void);
 #endif

@@ -37,7 +37,7 @@
 #include "mapping.h"
 #include "ut_manager/ut.h"
 
-#define verbose 0
+#define verbose 2
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -97,14 +97,19 @@ void sos_usleep(int usecs) {
  *** IRQ handler ***
  *******************/
 void network_irq(void) {
+	dprintf(1, "Network IRQ begin\n");
 	int err;
 	/* skip if the network was not initialised */
 	if (_irq_ep == seL4_CapNull) {
 		return;
 	}
+	dprintf(1, "lwip start\n");
+	dprintf(1, "lwip_iface is set to %p\n", lwip_iface);
 	ethif_lwip_handle_irq(lwip_iface, _net_irqs[0].irq);
+	dprintf(1, "lwip done\n");
 	err = seL4_IRQHandler_Ack(_net_irqs[0].cap);
 	assert(!err);
+	dprintf(1, "Network IRQ done\n");
 }
 
 static seL4_CPtr enable_irq(int irq, seL4_CPtr aep) {
@@ -176,6 +181,8 @@ void network_init(seL4_CPtr interrupt_ep) {
 	/* low level initialisation */
 	lwip_iface = ethif_new_lwip_driver(io_ops, NULL, ethif_imx6_init, NULL);
 	assert(lwip_iface);
+	dprintf(0, "lwip_iface paddr = %p, addr of = %p\n", lwip_iface,
+			&lwip_iface);
 
 	/* Initialise IRQS */
 	_net_irqs[0].irq = ETHERNET_IRQ;
