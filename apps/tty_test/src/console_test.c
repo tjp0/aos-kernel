@@ -5,7 +5,7 @@
 #include <string.h>
 #include <time.h>
 #define SMALL_BUF_SZ 2
-#define BUF_SZ 1025
+#define BUF_SZ 5000
 char test_str[] = "Basic test string for read/write";
 char small_buf[SMALL_BUF_SZ];
 
@@ -26,6 +26,7 @@ int test_buffers() {
 	   the console, without newlines */
 
 	result = sos_sys_read(console_fd, stack_buf, BUF_SZ);
+	printf("Got %u characters\n", result);
 	assert(result == BUF_SZ);
 
 	result = sos_sys_write(console_fd, stack_buf, BUF_SZ);

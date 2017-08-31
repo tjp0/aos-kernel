@@ -44,7 +44,7 @@ int serial_dev_init(void) {
 	return 0;
 }
 
-static int serial_read(void* data, struct vspace* vspace, vaddr_t procbuf,
+static int serial_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 					   size_t length) {
 	if (listening_thread != NULL) {
 		return -1;
@@ -105,7 +105,7 @@ serial_err:
 	return -1;
 }
 
-int serial_write(void* data, struct vspace* vspace, vaddr_t procbuf,
+int serial_write(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 				 size_t length) {
 	char array[512];
 

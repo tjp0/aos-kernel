@@ -33,3 +33,6 @@ static inline int SYSCALL_ARG0(int syscall_no) {
 #define SOS_SYSCALL_OPEN 5
 #define SOS_SYSCALL_WRITE 6
 #define SOS_SYSCALL_READ 7
+#define SOS_SYSCALL_CLOSE 8
+#define SOS_SYSCALL_STAT 9
+#define SOS_SYSCALL_GETDIRENT 10

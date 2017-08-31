@@ -5,13 +5,14 @@ struct vspace;
 
 struct fd {
 	int used;
-	int (*dev_write)(void* data, struct vspace* vspace, vaddr_t buffer,
+	int (*dev_write)(struct fd* fd, struct vspace* vspace, vaddr_t buffer,
 					 size_t length);
-	int (*dev_read)(void* data, struct vspace* vspace, vaddr_t buffer,
+	int (*dev_read)(struct fd* fd, struct vspace* vspace, vaddr_t buffer,
 					size_t length);
 	int (*dev_close)(struct fd* fd);
 	void* data;
 	int flags;
+	uint64_t offset;
 };
 
 struct fd_table {

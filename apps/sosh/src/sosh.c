@@ -57,7 +57,10 @@ static int cat(int argc, char **argv) {
 	fd = open(argv[1], O_RDONLY);
 	stdout_fd = open("console", O_WRONLY);
 
-	assert(fd >= 0);
+	if (fd < 0) {
+		printf("unable to open file\n");
+		return 1;
+	}
 
 	while ((num_read = read(fd, buf, BUF_SIZ)) > 0)
 		num_written = write(stdout_fd, buf, num_read);

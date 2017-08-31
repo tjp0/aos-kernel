@@ -145,6 +145,15 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		case SOS_SYSCALL_WRITE: {
 			err = syscall_write(process, arg1, arg2, arg3);
 		} break;
+		case SOS_SYSCALL_CLOSE: {
+			err = syscall_close(process, arg1);
+		} break;
+		case SOS_SYSCALL_STAT: {
+			err = syscall_stat(process, arg1, arg2);
+		} break;
+		case SOS_SYSCALL_GETDIRENT: {
+			err = syscall_getdirent(process, arg1, arg2, arg3);
+		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);
@@ -187,15 +196,15 @@ void* handle_event(void* e) {
 	if (badge & IRQ_EP_BADGE) {
 		/* Interrupt */
 		if (badge & IRQ_BADGE_NETWORK) {
-			dprintf(2, "Network IRQ\n");
+			dprintf(3, "Network IRQ\n");
 			network_irq();
 		}
 		if (badge & IRQ_BADGE_EPIT1) {
-			dprintf(2, "Timer IRQ\n");
+			dprintf(3, "Timer IRQ\n");
 			timer_interrupt_epit1();
 		}
 		if (badge & IRQ_BADGE_EPIT2) {
-			dprintf(2, "Timer IRQ\n");
+			dprintf(3, "Timer IRQ\n");
 			timer_interrupt_epit2();
 		}
 
@@ -425,6 +434,7 @@ static void sos_main(void) {
 				badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
 
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
+	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
 	// test_timers();
 	// register_timer(1000 * 1000, &simple_timer_callback, NULL);
 

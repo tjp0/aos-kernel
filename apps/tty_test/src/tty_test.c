@@ -32,7 +32,7 @@
 #include "ttyout.h"
 
 int main(void) {
-	char* array = alloca(1000);
+	char* array = malloc(16000);
 
 	for (char i = 0; i < 255; i++) {
 		array[(int)i] = i;
@@ -42,6 +42,10 @@ int main(void) {
 	}
 	printf("Running malloc test\n");
 	pt_test();
+
+	memset(array, 'C', 16000);
+	array[16000 - 1] = 'B';
+	sos_write(array, 16000);
 
 	printf("Running buf test\n");
 	test_buffers();

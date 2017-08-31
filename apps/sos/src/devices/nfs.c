@@ -1,0 +1,250 @@
+#include <autoconf.h>
+#include <clock/clock.h>
+#include <copy.h>
+#include <filetable.h>
+#include <lwip/ip_addr.h>
+#include <nfs/nfs.h>
+#include <sos.h>
+#include <utils/math.h>
+#include <utils/picoro.h>
+#define verbose 5
+#include <sys/debug.h>
+#include <sys/kassert.h>
+
+#define NFS_TIMEOUT 1000 * 100  // 100ms
+#define NFS_BUFFER_SIZE 4096
+
+#define POSIX_USER_BITSHIFT 6
+
+static fhandle_t mounted_fs;
+
+struct nfs_lookup_callback_t {
+	enum nfs_stat status;
+	fhandle_t* fh;
+	fattr_t* fattr;
+};
+static void nfs_lookup_callback(uintptr_t token, enum nfs_stat status,
+								fhandle_t* fh, fattr_t* fattr) {
+	coro ret_co = (coro)token;
+	struct nfs_lookup_callback_t cb = {
+		.status = status, .fh = fh, .fattr = fattr};
+	resume(ret_co, &cb);
+}
+
+struct nfs_read_callback_t {
+	enum nfs_stat status;
+	fattr_t* fattr;
+	int count;
+	void* data;
+};
+
+static void nfs_read_callback(uintptr_t token, enum nfs_stat status,
+							  fattr_t* fattr, int count, void* data) {
+	coro ret_co = (coro)token;
+	struct nfs_read_callback_t cb = {
+		.status = status, .fattr = fattr, .count = count, .data = data};
+	resume(ret_co, &cb);
+}
+
+struct nfs_readdir_callback_t {
+	enum nfs_stat status;
+	int num_files;
+	char** file_names;
+	nfscookie_t nfscookie;
+};
+
+static void nfs_readdir_callback(uintptr_t token, enum nfs_stat status,
+								 int num_files, char* file_names[],
+								 nfscookie_t nfscookie) {
+	coro ret_co = (coro)token;
+	struct nfs_readdir_callback_t cb = {.status = status,
+										.num_files = num_files,
+										.file_names = file_names,
+										.nfscookie = nfscookie};
+	resume(ret_co, &cb);
+}
+
+static void nfs_timeout_awaken(uint32_t id, void* data) {
+	(void)id;
+	(void)data;
+	nfs_timeout();
+	int err = register_timer(NFS_TIMEOUT, nfs_timeout_awaken, NULL);
+	conditional_panic(err < 0, "NFS timer failed to reregister");
+}
+
+int nfs_dev_init(void) {
+	ip_addr_t ip;
+	ip.addr = ipaddr_addr(CONFIG_SOS_GATEWAY);
+	rpc_stat_t ret = nfs_init(&ip);
+	if (ret != RPC_OK) {
+		dprintf(0, "NFS failed, ret: %u\n", ret);
+		return -1;
+	}
+
+	int err = register_timer(NFS_TIMEOUT, nfs_timeout_awaken, NULL);
+	conditional_panic(err < 0, "Failed to register NFS timer");
+	if (verbose > 0) {
+		nfs_print_exports();
+	}
+	ret = nfs_mount(CONFIG_SOS_NFS_DIR, &mounted_fs);
+	if (ret != RPC_OK) {
+		dprintf(0, "NFS failed to mount, ret: %u\n", ret);
+		return -1;
+	}
+
+	dprintf(0, "NFS share mounted\n");
+	return 0;
+};
+
+int nfs_dev_stat(struct vspace* vspace, const char* filename,
+				 vaddr_t sos_stat) {
+	enum rpc_stat ret = nfs_lookup(&mounted_fs, filename, nfs_lookup_callback,
+								   (uintptr_t)current_coro());
+	if (ret != RPC_OK) {
+		trace(2);
+		return -ret;
+	}
+
+	struct nfs_lookup_callback_t* callback = yield(NULL);
+	sos_stat_t local_stat;
+	fattr_t* f = callback->fattr;
+	local_stat.st_size = f->size;
+	local_stat.st_atime = f->atime.seconds * 1000 + f->atime.useconds / 1000;
+	local_stat.st_ctime = f->ctime.seconds * 1000 + f->ctime.useconds / 1000;
+	if (f->type == NFREG) {
+		local_stat.st_type = ST_FILE;
+	} else {
+		local_stat.st_type = ST_SPECIAL;
+	}
+	local_stat.st_fmode = (f->mode >> POSIX_USER_BITSHIFT);
+
+	if (copy_sos2vspace(&local_stat, sos_stat, vspace, sizeof(local_stat), 0) <
+		0) {
+		return -1;
+	}
+	return 0;
+}
+
+int nfs_dev_getdirent(struct vspace* vspace, int pos, vaddr_t name,
+					  size_t nbyte) {
+	/* This is really slow if there's a lot of files, with many round trips, but
+	 * readdir is a relatively unused operation */
+	nfscookie_t cookie = 0;
+	struct nfs_readdir_callback_t* cb;
+	while (1) {
+		enum rpc_stat stat =
+			nfs_readdir(&mounted_fs, cookie, nfs_readdir_callback,
+						(uintptr_t)current_coro());
+		if (stat != RPC_OK) {
+			return -1;
+		}
+		cb = yield(NULL);
+
+		if (cb->num_files == 0) {
+			return 0;
+		}
+		if (pos < cb->num_files) {
+			/* We've found the right position */
+			break;
+		}
+		cookie = cb->nfscookie;
+		pos -= cb->num_files;
+	}
+	char* str = cb->file_names[pos];
+
+	size_t len = strlen(str) + 1;
+	char* copy = malloc(len);
+	if (copy == NULL) {
+		return -1;
+	}
+	strcpy(copy, str);
+	copy[nbyte - 1] = '\0';
+	dprintf(0, "Found dir entity %s\n", str);
+
+	return copy_sos2vspace(copy, name, vspace, (nbyte < len ? nbyte : len),
+						   COPY_RETURNWRITTEN);
+}
+
+struct nfs_fd_data {
+	fhandle_t fhandle;
+	fattr_t fattr;
+};
+
+static int nfs_dev_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
+						size_t length) {
+	char buffer[NFS_BUFFER_SIZE];
+	kassert(fd != NULL);
+	struct nfs_fd_data* data = fd->data;
+
+	size_t read = 0;
+	while (read < length) {
+		size_t toread = (length - read <= NFS_BUFFER_SIZE) ? length - read
+														   : NFS_BUFFER_SIZE;
+		enum rpc_stat stat =
+			nfs_read(&data->fhandle, fd->offset, length, nfs_read_callback,
+					 (uintptr_t)current_coro());
+		if (stat != RPC_OK) {
+			return -stat;
+		}
+		struct nfs_read_callback_t* callback = yield(NULL);
+		if (callback->status != NFS_OK) {
+			return -callback->status;
+		}
+		memcpy(buffer, callback->data, callback->count);
+		if (copy_sos2vspace(buffer, procbuf, vspace, callback->count, 0) < 0) {
+			goto read_err;
+		}
+
+		read += callback->count;
+		if (callback->count != toread) {
+			break;
+		}
+	}
+	fd->offset += read;
+	return read;
+read_err:
+	return -1;
+}
+
+static int nfs_dev_close(struct fd* fd) {
+	assert(fd != NULL);
+	free(fd->data);
+	memset(fd, 0, sizeof(struct fd));
+	return 0;
+}
+
+int nfs_dev_open(struct fd* fd, char* name, int flags) {
+	trace(2);
+	struct nfs_fd_data* data =
+		(struct nfs_fd_data*)malloc(sizeof(struct nfs_fd_data));
+	if (data == NULL) {
+		trace(2);
+		return -RPCERR_NOMEM;
+	}
+	trace(2);
+	enum rpc_stat ret = nfs_lookup(&mounted_fs, name, nfs_lookup_callback,
+								   (uintptr_t)current_coro());
+	if (ret != RPC_OK) {
+		trace(2);
+		free(data);
+		return -ret;
+	}
+	trace(2);
+	struct nfs_lookup_callback_t* cb = yield(NULL);
+	if (cb->status != NFS_OK) {
+		dprintf(1, "NFS: Failed to open file: %s, with reason %u\n", name,
+				cb->status);
+		trace(2);
+		free(data);
+		return -cb->status;
+	}
+	trace(2);
+	data->fhandle = *cb->fh;
+	data->fattr = *cb->fattr;
+	fd->used = 1;
+	fd->data = data;
+	fd->offset = 0;
+	fd->dev_read = &nfs_dev_read;
+	fd->dev_close = &nfs_dev_close;
+	return 0;
+}

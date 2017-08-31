@@ -8,19 +8,14 @@
 #include <syscall.h>
 
 int sos_stat(const char *path, sos_stat_t *buf) {
-	assert(!"sos_stat not implemented");
-	return -1;
+	return SYSCALL_ARG2(SOS_SYSCALL_STAT, (int)path, (int)buf);
 }
 
 int sos_getdirent(int pos, char *name, size_t nbyte) {
-	assert(!"sos_getdirent not implemented");
-	return -1;
+	return SYSCALL_ARG3(SOS_SYSCALL_GETDIRENT, pos, name, nbyte);
 }
 
-int sos_sys_close(int file) {
-	assert(!"sos_sys_close not implemented");
-	return -1;
-}
+int sos_sys_close(int file) { return SYSCALL_ARG1(SOS_SYSCALL_CLOSE, file); }
 
 size_t sos_write(void *vData, size_t count) {
 	// implement this to use your syscall
