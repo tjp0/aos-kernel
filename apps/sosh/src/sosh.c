@@ -34,7 +34,7 @@ static sos_stat_t sbuf;
 
 static void prstat(const char *name) {
 	/* print out stat buf */
-	printf("%c%c%c%c 0x%06x 0x%lx 0x%06lx %s\n",
+	printf("%c%c%c%c 0x%08x 0x%08lx 0x%08lx %s\n",
 		   sbuf.st_type == ST_SPECIAL ? 's' : '-',
 		   sbuf.st_fmode & FM_READ ? 'r' : '-',
 		   sbuf.st_fmode & FM_WRITE ? 'w' : '-',

@@ -102,10 +102,13 @@ int nfs_dev_stat(struct vspace* vspace, const char* filename,
 								   (uintptr_t)current_coro());
 	if (ret != RPC_OK) {
 		trace(2);
-		return -ret;
+		return -1;
 	}
 
 	struct nfs_lookup_callback_t* callback = yield(NULL);
+	if (callback->status != NFS_OK) {
+		return -1;
+	}
 	sos_stat_t local_stat;
 	fattr_t* f = callback->fattr;
 	local_stat.st_size = f->size;

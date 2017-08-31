@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <utils/picoro.h>
 
+#define CORO_STACK_PAGES 8
+
 #pragma GCC push_options
 
 /* This library and the optimizer don't seem to agree */
@@ -149,7 +151,7 @@ void coroutine_main(void *ret) {
  * initial stack frame for the next coroutine.
  */
 void coroutine_start(void) {
-	char stack[16 * 1024];
+	char stack[4096 * CORO_STACK_PAGES];
 	coroutine_main(stack);
 }
 
