@@ -7,7 +7,7 @@
 #include <sos.h>
 #include <utils/math.h>
 #include <utils/picoro.h>
-#define verbose 5
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 
@@ -46,6 +46,34 @@ static void nfs_read_callback(uintptr_t token, enum nfs_stat status,
 	resume(ret_co, &cb);
 }
 
+struct nfs_write_callback_t {
+	enum nfs_stat status;
+	fattr_t* fattr;
+	int count;
+};
+
+static void nfs_write_callback(uintptr_t token, enum nfs_stat status,
+							   fattr_t* fattr, int count) {
+	coro ret_co = (coro)token;
+	struct nfs_write_callback_t cb = {
+		.status = status, .fattr = fattr, .count = count};
+	resume(ret_co, &cb);
+}
+
+struct nfs_create_callback_t {
+	enum nfs_stat status;
+	fhandle_t* fh;
+	fattr_t* fattr;
+};
+
+static void nfs_create_callback(uintptr_t token, enum nfs_stat status,
+								fhandle_t* fh, fattr_t* fattr) {
+	coro ret_co = (coro)token;
+	struct nfs_create_callback_t cb = {
+		.status = status, .fattr = fattr, .fh = fh};
+	resume(ret_co, &cb);
+}
+
 struct nfs_readdir_callback_t {
 	enum nfs_stat status;
 	int num_files;
@@ -77,7 +105,7 @@ int nfs_dev_init(void) {
 	ip.addr = ipaddr_addr(CONFIG_SOS_GATEWAY);
 	rpc_stat_t ret = nfs_init(&ip);
 	if (ret != RPC_OK) {
-		dprintf(0, "NFS failed, ret: %u\n", ret);
+		dprintf(0, "NFS Failed, ret: %u\n", ret);
 		return -1;
 	}
 
@@ -178,28 +206,28 @@ static int nfs_dev_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 	char buffer[NFS_BUFFER_SIZE];
 	kassert(fd != NULL);
 	struct nfs_fd_data* data = fd->data;
-
 	size_t read = 0;
 	while (read < length) {
 		size_t toread = (length - read <= NFS_BUFFER_SIZE) ? length - read
 														   : NFS_BUFFER_SIZE;
 		enum rpc_stat stat =
-			nfs_read(&data->fhandle, fd->offset, length, nfs_read_callback,
-					 (uintptr_t)current_coro());
+			nfs_read(&data->fhandle, fd->offset + read, length,
+					 nfs_read_callback, (uintptr_t)current_coro());
 		if (stat != RPC_OK) {
 			return -stat;
 		}
 		struct nfs_read_callback_t* callback = yield(NULL);
+		int call_count = callback->count;
+
 		if (callback->status != NFS_OK) {
 			return -callback->status;
 		}
-		memcpy(buffer, callback->data, callback->count);
-		if (copy_sos2vspace(buffer, procbuf, vspace, callback->count, 0) < 0) {
+		memcpy(buffer, callback->data, call_count);
+		if (copy_sos2vspace(buffer, procbuf, vspace, call_count, 0) < 0) {
 			goto read_err;
 		}
-
-		read += callback->count;
-		if (callback->count != toread) {
+		read += call_count;
+		if (call_count != toread) {
 			break;
 		}
 	}
@@ -209,6 +237,60 @@ read_err:
 	return -1;
 }
 
+// parameters stolen from serial_write serial.c
+// filetable.h
+// func pointers
+
+static int nfs_dev_write(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
+						 size_t length) {
+	/*
+	 * write the callback struct and function
+	 * this function
+	 * copy from vspace to sos
+	 * the data the needs to be written
+	 * passed via vspace and procbuf
+	 * copy_vspace2sos(....)
+	 * copy that into a buffer on the stack
+	 * basically call nfsrite on the buffer
+	 * do it until all the data is written
+	 * don't use malloc to get the buffer
+	 * malloc is realtively slow
+	 * alloce t it staitclal on the stack
+	 * and copy at most that many bytes
+	 */
+
+	char buffer[NFS_BUFFER_SIZE];
+	struct nfs_fd_data* data = fd->data;
+	unsigned int num_written = 0;
+
+	while (num_written < length) {
+		unsigned int amt2write = MIN(sizeof(buffer), length - num_written);
+		// copy data from vspace to sos into buffer
+		if (copy_vspace2sos(procbuf + num_written, buffer, vspace, amt2write,
+							0) < 0) {
+			return -1;
+		}
+		// call nfs write with buffer
+		enum rpc_stat stat = nfs_write(&data->fhandle, fd->offset, amt2write,
+									   &buffer[num_written], nfs_write_callback,
+									   (uintptr_t)current_coro());
+
+		if (stat != RPC_OK) {
+			return -stat;
+		}
+
+		struct nfs_write_callback_t* callback = yield(NULL);
+
+		if (callback->status != NFS_OK) {
+			return -callback->status;
+		}
+		num_written += callback->count;
+	}
+
+	fd->offset += num_written;
+	return num_written;
+}
+
 static int nfs_dev_close(struct fd* fd) {
 	assert(fd != NULL);
 	free(fd->data);
@@ -216,10 +298,65 @@ static int nfs_dev_close(struct fd* fd) {
 	return 0;
 }
 
+int nfs_dev_create(const char* name, const sattr_t* sattr, fhandle_t* fh) {
+	/*
+	 * An asynchronous function used for creating a new file on the NFS file
+	 * server. This function is used to create a new file named "name" with the
+	 * attributes "sattr". On completion, the provided callback (@ref
+	 * nfs_create_cb_t) will be executed with "token" passed, unmodified, as an
+	 * argument.
+	 * @param[in] pfh      An NFS file handle (@ref fhandle_t) to the directory
+	 *                     that should contain the newly created file.
+	 * @param[in] name     The NULL terminated name of the file to create.
+	 * @param[in] sattr    The attributes which the file should posses after
+	 *                     creation.
+	 * @param[in] callback An @ref nfs_create_cb_t callback function to call
+	 * once a response arrives.
+	 * @param[in] token    A token to pass, unmodified, to the callback
+	 * function.
+	 * @return             RPC_OK if the request was successfully sent.
+	 * Otherwise an appropriate error code will be returned. "callback" will be
+	 * called once the response to this request has been
+	 *                     received.
+	 */
+	// enum rpc_stat nfs_create(const fhandle_t* pfh, const char* name,
+	// 						 const sattr_t* sattr, nfs_create_cb_t callback,
+	// 						 uintpt	r_t token);
+
+	enum rpc_stat zr = nfs_create(&mounted_fs, name, sattr, nfs_create_callback,
+								  (uintptr_t)current_coro());
+	enum rpc_stat ret = zr;  // clang format breaks sublime colors if ^ too long
+
+	trace(2);
+	if (ret != RPC_OK) {
+		return -ret;
+	}
+	struct nfs_create_callback_t* cb = yield(NULL);
+	trace(2);
+	if (cb->status != NFS_OK) {
+		trace(2);
+		dprintf(1, "NFS: Failed to create file: %s, with reason %u\n", name,
+				cb->status);
+
+		trace(2);
+		return -cb->status;
+	}
+	trace(2);
+	printf("fh %p\n", (void*)fh);
+	printf("cb %p\n", (void*)cb);
+	printf("cb->fh %p\n", (void*)cb->fh);
+	// printf("*cb->fh %p\n", (void*)*cb->fh);
+	*fh = *cb->fh;
+	trace(2);
+	return 0;
+}
+
 int nfs_dev_open(struct fd* fd, char* name, int flags) {
 	trace(2);
-	struct nfs_fd_data* data =
-		(struct nfs_fd_data*)malloc(sizeof(struct nfs_fd_data));
+	uint32_t struct_size = sizeof(struct nfs_fd_data);
+
+	struct nfs_fd_data* data = (struct nfs_fd_data*)malloc(struct_size);
+
 	if (data == NULL) {
 		trace(2);
 		return -RPCERR_NOMEM;
@@ -227,6 +364,9 @@ int nfs_dev_open(struct fd* fd, char* name, int flags) {
 	trace(2);
 	enum rpc_stat ret = nfs_lookup(&mounted_fs, name, nfs_lookup_callback,
 								   (uintptr_t)current_coro());
+
+	// Check the flags to see if it was readonly
+	// if so, don't make it
 	if (ret != RPC_OK) {
 		trace(2);
 		free(data);
@@ -234,20 +374,50 @@ int nfs_dev_open(struct fd* fd, char* name, int flags) {
 	}
 	trace(2);
 	struct nfs_lookup_callback_t* cb = yield(NULL);
-	if (cb->status != NFS_OK) {
+
+	if (cb->status == NFSERR_NOENT && !(flags & !FM_READ)) {
+		// create the file
+
+		sattr_t sat = {
+			.mode = ((FM_EXEC | FM_WRITE | FM_READ) << POSIX_USER_BITSHIFT),
+			.uid = 0,
+			.gid = 0,
+			.size = 0,
+			.atime = (timeval_t){.seconds = 0, .useconds = 0},
+			.mtime = (timeval_t){.seconds = 0, .useconds = 0}};
+
+		fhandle_t fh;
+		trace(2);
+		int stat = nfs_dev_create(name, &sat, &fh);
+		trace(2);
+
+		if (stat != 0) {
+			// error
+			return -stat;
+		}
+		data->fhandle = fh;
+		trace(2);
+	} else if (cb->status != NFS_OK) {
+		trace(2);
 		dprintf(1, "NFS: Failed to open file: %s, with reason %u\n", name,
 				cb->status);
 		trace(2);
 		free(data);
+		trace(2);
 		return -cb->status;
 	}
 	trace(2);
 	data->fhandle = *cb->fh;
+	trace(2);
 	data->fattr = *cb->fattr;
+	trace(2);
 	fd->used = 1;
 	fd->data = data;
 	fd->offset = 0;
 	fd->dev_read = &nfs_dev_read;
 	fd->dev_close = &nfs_dev_close;
+	fd->dev_write = &nfs_dev_write;
 	return 0;
 }
+
+// if the NFSERR_NOENT and the flag to create is given then call nfs_create
