@@ -9,7 +9,7 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 1
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -106,16 +106,23 @@ struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd) {
 
 struct page_table_entry* pd_getpage(struct page_directory* pd,
 									vaddr_t address) {
+	trace(4);
 	assert(pd != NULL);
 	address = PAGE_ALIGN_4K(address);
 	dprintf(2, "Finding page at: %p\n", (void*)address);
 	dprintf(2, "Find page 1st index: %u\n", vaddr_to_ptsoffset(address));
+	trace(4);
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(address)];
+	trace(4);
 	if (pt == NULL) {
+		trace(4);
 		return NULL;
 	}
+	trace(4);
 	dprintf(2, "Find page 2nd index: %u\n", vaddr_to_pteoffset(address));
 	struct page_table_entry* pte = pt->ptes[vaddr_to_pteoffset(address)];
+	trace(4);
+
 	return pte;
 }
 
