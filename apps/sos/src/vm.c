@@ -11,7 +11,10 @@
 
 #define verbose 1
 #include <sys/debug.h>
+#include <sys/kassert.h>
 #include <sys/panic.h>
+
+struct page_table_entry* paging_cur;
 
 int pd_map_page(struct page_directory* pd, struct page_table_entry* page);
 
@@ -189,6 +192,16 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	dprintf(1, "VM MISSING PAGE CALLED AT ADDRESS %p\n", (void*)address);
 	address = PAGE_ALIGN_4K(address);
+
+	struct page_table_entry* pte;
+	/* If the page exists, but is swapped out, swap it in */
+	pte = pd_getpage(vspace->pagetable, address);
+	if (pte != NULL) {
+		return vm_swapin(vspace->pagetable, pte);
+	}
+	/* Otherwise check if we're in a valid region and start
+	 * creating a new page */
+
 	region_node* region = find_region(vspace->regions, address);
 
 	if (region == NULL && in_stack_region(vspace->regions->stack, address)) {
@@ -204,8 +217,6 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 		return VM_NOREGION;
 	}
 
-	struct page_table_entry* pte;
-
 	if ((pte = pd_createpage(vspace->pagetable, address, region->perm)) ==
 		NULL) {
 		return VM_FAIL;
@@ -216,6 +227,54 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 
 	assert(pd_getpage(vspace->pagetable, address) == pte);
 	return VM_OKAY;
+}
+
+bool vm_pageisloaded(struct page_table_entry* pte) {
+	kassert(pte != NULL);
+	return pte->frame != NULL;
+}
+int vm_swapout(struct page_directory* pd, struct page_table_entry* pte) {
+	kassert(pte != NULL);
+	kassert(pte->frame != NULL);
+	pte->tmp_frame = pte->frame;
+	pte->frame = NULL;
+	seL4_ARM_Page_Unmap(pte->cap);
+	cspace_delete_cap(cur_cspace, pte->cap);
+	pte->cap = 0;
+	return 0;
+}
+int vm_debug_swapout(struct page_directory* pd) {}
+int vm_swapin(struct page_directory* pd, struct page_table_entry* pte) {
+	kassert(pte != NULL);
+	kassert(pte->frame == NULL);
+	pte->frame = pte->tmp_frame;
+
+	vaddr_t pt_addr = ut_alloc(seL4_PageTableBits);
+	if (pt_addr == 0) {
+		goto fail3;
+	}
+	/* Create the frame cap */
+	int err = cspace_ut_retype_addr(pt_addr, seL4_ARM_PageTableObject,
+									seL4_PageTableBits, cur_cspace, &pte->cap);
+	if (err) {
+		goto fail2;
+	}
+	err = seL4_ARM_Page_Map(pte->cap, pd->seL4_pd, pte->address, seL4_AllRights,
+							seL4_ARM_Default_VMAttributes);
+	if (err) {
+		goto fail1;
+	}
+
+	return VM_OKAY;
+
+fail1:
+	cspace_delete_cap(cur_cspace, pte->cap);
+	pte->cap = 0;
+	return VM_FAIL;
+fail2:
+	ut_free(pt_addr, seL4_PageTableBits);
+fail3:
+	return VM_FAIL;
 }
 
 /* Could use a lookup table */

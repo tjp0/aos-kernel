@@ -21,6 +21,9 @@ struct page_table_entry {
 	vaddr_t address;
 	struct frame* frame;
 	seL4_ARM_Page cap;
+	struct frame* tmp_frame;  // Remove this
+	struct page_table_entry* prev;
+	struct page_table_entry* next;
 };
 
 struct page_table {
@@ -43,3 +46,7 @@ struct page_table_entry* sos_map_page(struct page_directory* pd,
 									  vaddr_t address, uint8_t permissions);
 
 void sos_handle_vmfault(struct process* process);
+
+int vm_swapout(struct page_directory* pd, struct page_table_entry* pte);
+bool vm_pageisloaded(struct page_table_entry* pte);
+int vm_swapin(struct page_directory* pd, struct page_table_entry* pte);

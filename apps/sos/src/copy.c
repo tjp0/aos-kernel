@@ -14,7 +14,7 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 									  uint32_t flags) {
 	struct page_table_entry* pte = pd_getpage(vspace->pagetable, dest_vaddr);
 
-	if (pte == NULL) {
+	if (pte == NULL || !vm_pageisloaded(pte)) {
 		if (!(flags & COPY_VSPACE2SOS)) {
 			/* Pretend that we just vmfaulted on the page */
 			if (vm_missingpage(vspace, dest_vaddr) < 0) {
