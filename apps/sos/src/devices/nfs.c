@@ -271,9 +271,9 @@ static int nfs_dev_write(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 			return -1;
 		}
 		// call nfs write with buffer
-		enum rpc_stat stat = nfs_write(&data->fhandle, fd->offset, amt2write,
-									   &buffer[num_written], nfs_write_callback,
-									   (uintptr_t)current_coro());
+		enum rpc_stat stat =
+			nfs_write(&data->fhandle, fd->offset, amt2write, buffer,
+					  nfs_write_callback, (uintptr_t)current_coro());
 
 		if (stat != RPC_OK) {
 			return -stat;
