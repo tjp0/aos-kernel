@@ -12,7 +12,7 @@
 #include <sys/kassert.h>
 
 #define NFS_TIMEOUT 1000 * 100  // 100ms
-#define NFS_BUFFER_SIZE 4096
+#define NFS_BUFFER_SIZE 8192
 
 #define POSIX_USER_BITSHIFT 6
 
