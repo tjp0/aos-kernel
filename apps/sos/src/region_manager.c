@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vmem_layout.h>
-#define verbose 0
+#define verbose 5
 #include <sys/debug.h>
 
 /* Leave a 4K page minimum between expanding regions */
@@ -84,6 +84,8 @@ region_node* make_region_node(vaddr_t addr, unsigned int size,
 	if (new_node == NULL) {
 		return NULL;
 	}
+	new_node->next = NULL;
+	new_node->prev = NULL;
 	new_node->vaddr = addr;
 	new_node->size = size;
 	new_node->perm = perm;
@@ -106,20 +108,26 @@ region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 
 	if (!cur) {
 		reg_list->start = new_node;
-		return new_node;
 	} else if (cur->vaddr > addr) {
 		region_node* prev = reg_list->start;
 		new_node->next = prev;
 		prev->prev = new_node;
 		reg_list->start = new_node;
-		return new_node;
 	} else {
 		region_node* prev = findspot(reg_list->start, addr);
 		new_node->next = prev->next;
 		new_node->prev = prev;
+		if (new_node->next) {
+			new_node->next->prev = new_node;
+		}
 		prev->next = new_node;
-		return new_node;
+
+		// kassert(prev->next->prev == prev);
+		// kassert(prev->prev->next == prev);
 	}
+
+	regions_print(reg_list);
+	return new_node;
 }
 
 region_node* find_region(region_list* list, vaddr_t addr) {
@@ -187,9 +195,20 @@ region_node* create_heap(region_list* region_list) {
 
 void regions_print(region_list* regions) {
 	region_node* cur = regions->start;
+	// printf("----------------------\n");
 	while (cur) {
 		printf("0x%08x -> 0x%08x: perm: %08u, | %s\n", cur->vaddr,
 			   cur->vaddr + cur->size, cur->perm, cur->name);
+
+		// if (cur->prev && cur->prev->vaddr) {
+		// 	printf("0x%08x -> 0x%08x: perm: %08u, | %s :0x%08x\n", cur->vaddr,
+		// 		   cur->vaddr + cur->size, cur->perm, cur->name,
+		// 		   cur->prev->vaddr);
+		// } else {
+		// 	printf("0x%08x -> 0x%08x: perm: %08u, | %s ;0x%08x\n", cur->vaddr,
+		// 		   cur->vaddr + cur->size, cur->perm, cur->name, 0);
+		// }
 		cur = cur->next;
 	}
+	// printf("########################\n");
 }
