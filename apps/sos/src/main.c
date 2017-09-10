@@ -439,7 +439,7 @@ static void sos_main(void) {
 	// register_timer(1000 * 1000, &simple_timer_callback, NULL);
 
 	printf("Running frame test\n");
-	frame_test();
+	// frame_test();
 
 	/* Start the user application */
 	start_first_process("First Process", _sos_ipc_ep_cap);

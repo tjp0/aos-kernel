@@ -341,13 +341,7 @@ int nfs_dev_create(const char* name, const sattr_t* sattr, fhandle_t* fh) {
 		trace(2);
 		return -cb->status;
 	}
-	trace(2);
-	printf("fh %p\n", (void*)fh);
-	printf("cb %p\n", (void*)cb);
-	printf("cb->fh %p\n", (void*)cb->fh);
-	// printf("*cb->fh %p\n", (void*)*cb->fh);
 	*fh = *cb->fh;
-	trace(2);
 	return 0;
 }
 
