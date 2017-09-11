@@ -12,7 +12,7 @@
 #include <sys/kassert.h>
 
 #define NFS_TIMEOUT 1000 * 100  // 100ms
-#define NFS_BUFFER_SIZE 8192
+#define NFS_BUFFER_SIZE 7000
 
 #define POSIX_USER_BITSHIFT 6
 
@@ -203,6 +203,7 @@ struct nfs_fd_data {
 
 static int nfs_dev_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 						size_t length) {
+	trace(2);
 	char buffer[NFS_BUFFER_SIZE];
 	kassert(fd != NULL);
 	struct nfs_fd_data* data = fd->data;
@@ -211,29 +212,38 @@ static int nfs_dev_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 		size_t toread = (length - read <= NFS_BUFFER_SIZE) ? length - read
 														   : NFS_BUFFER_SIZE;
 		enum rpc_stat stat =
-			nfs_read(&data->fhandle, fd->offset + read, length,
+			nfs_read(&data->fhandle, fd->offset + read, toread,
 					 nfs_read_callback, (uintptr_t)current_coro());
 		if (stat != RPC_OK) {
 			return -stat;
 		}
+		trace(2);
 		struct nfs_read_callback_t* callback = yield(NULL);
 		int call_count = callback->count;
 
 		if (callback->status != NFS_OK) {
+			trace(2);
 			return -callback->status;
 		}
 		memcpy(buffer, callback->data, call_count);
-		if (copy_sos2vspace(buffer, procbuf, vspace, call_count, 0) < 0) {
+		trace(2);
+		if (copy_sos2vspace(buffer, procbuf + read, vspace, call_count, 0) <
+			0) {
+			trace(2);
 			goto read_err;
 		}
 		read += call_count;
-		if (call_count != toread) {
+		trace(2);
+		if (call_count == 0) {
+			trace(2);
 			break;
 		}
 	}
 	fd->offset += read;
+	trace(2);
 	return read;
 read_err:
+	trace(2);
 	return -1;
 }
 
@@ -263,31 +273,40 @@ static int nfs_dev_write(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 	struct nfs_fd_data* data = fd->data;
 	unsigned int num_written = 0;
 
+	trace(2);
 	while (num_written < length) {
+		trace(2);
+
 		unsigned int amt2write = MIN(sizeof(buffer), length - num_written);
 		// copy data from vspace to sos into buffer
 		if (copy_vspace2sos(procbuf + num_written, buffer, vspace, amt2write,
 							0) < 0) {
+			trace(2);
 			return -1;
 		}
 		// call nfs write with buffer
-		enum rpc_stat stat = nfs_write(&data->fhandle, fd->offset, amt2write,
-									   &buffer[num_written], nfs_write_callback,
-									   (uintptr_t)current_coro());
+		enum rpc_stat stat =
+			nfs_write(&data->fhandle, fd->offset + num_written, amt2write,
+					  buffer, nfs_write_callback, (uintptr_t)current_coro());
 
 		if (stat != RPC_OK) {
+			trace(2);
 			return -stat;
 		}
 
 		struct nfs_write_callback_t* callback = yield(NULL);
 
 		if (callback->status != NFS_OK) {
+			trace(2);
 			return -callback->status;
 		}
+
 		num_written += callback->count;
 	}
 
 	fd->offset += num_written;
+	trace(2);
+
 	return num_written;
 }
 
@@ -341,13 +360,7 @@ int nfs_dev_create(const char* name, const sattr_t* sattr, fhandle_t* fh) {
 		trace(2);
 		return -cb->status;
 	}
-	trace(2);
-	printf("fh %p\n", (void*)fh);
-	printf("cb %p\n", (void*)cb);
-	printf("cb->fh %p\n", (void*)cb->fh);
-	// printf("*cb->fh %p\n", (void*)*cb->fh);
 	*fh = *cb->fh;
-	trace(2);
 	return 0;
 }
 
