@@ -16,14 +16,20 @@
 #define VM_FAIL -2
 #define VM_OKAY 0
 
+/* The flag that defines if the page has been recently accessed */
+#define PAGE_ACCESSED (1 << 4)
+/* Mask for the permissions section of the flags */
+#define PAGE_PERMMASK 0b00000011
+
 struct page_table_entry {
-	uint8_t permissions;
+	uint8_t flags;
 	vaddr_t address;
 	struct frame* frame;
 	seL4_ARM_Page cap;
 	struct frame* tmp_frame;  // Remove this
-	struct page_table_entry* prev;
+	struct page_directory* pd;
 	struct page_table_entry* next;
+	struct page_table_entry* prev;
 };
 
 struct page_table {

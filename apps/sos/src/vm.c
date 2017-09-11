@@ -14,7 +14,7 @@
 #include <sys/kassert.h>
 #include <sys/panic.h>
 
-struct page_table_entry* paging_cur;
+static struct page_table_entry* clock_pointer;
 
 int pd_map_page(struct page_directory* pd, struct page_table_entry* page);
 
@@ -83,7 +83,7 @@ static struct page_table_entry* create_pte(vaddr_t address,
 	struct page_table_entry* pte = malloc(sizeof(struct page_table_entry));
 	memset(pte, 0, sizeof(struct page_table_entry));
 	pte->address = address;
-	pte->permissions = permissions;
+	pte->flags = permissions & PAGE_PERMMASK;
 	pte->cap = 0;
 
 	void* new_frame = frame_alloc();
@@ -94,6 +94,19 @@ static struct page_table_entry* create_pte(vaddr_t address,
 
 	struct frame* frame = get_frame(new_frame);
 	pte->frame = frame;
+
+	if (clock_pointer == NULL) {
+		clock_pointer = pte;
+		pte->next = pte;
+		pte->prev = pte;
+		return pte;
+	}
+
+	pte->next = clock_pointer;
+	pte->prev = clock_pointer->prev;
+	clock_pointer->prev = pte;
+	pte->prev->next = pte;
+
 	return pte;
 }
 
@@ -229,6 +242,16 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	return VM_OKAY;
 }
 
+struct page_table_entry* vm_findswappage() {
+	/* If we need to swap, but no pages exist, something is wrong */
+	kassert(clock_pointer != NULL);
+
+	while (clock_pointer->flags & PAGE_ACCESSED) {
+		clock_pointer->flags &= ~PAGE_ACCESSED;
+		seL4_ARM_Page_Unmap(clock_pointer->cap);
+		clock_pointer = clock_pointer->next;
+	}
+}
 bool vm_pageisloaded(struct page_table_entry* pte) {
 	kassert(pte != NULL);
 	return pte->frame != NULL;
@@ -248,7 +271,6 @@ int vm_swapin(struct page_directory* pd, struct page_table_entry* pte) {
 	kassert(pte != NULL);
 	kassert(pte->frame == NULL);
 	pte->frame = pte->tmp_frame;
-
 	vaddr_t pt_addr = ut_alloc(seL4_PageTableBits);
 	if (pt_addr == 0) {
 		goto fail3;
