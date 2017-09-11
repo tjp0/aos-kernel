@@ -157,13 +157,23 @@ static char test_str[] =
 	"RvARYARwARZARxARyARzAo%AosAoBAo$AonAoCAo-Ao(AoDAo;Ao)"
 	"AoEAoaAo0AoFAobAo1AoGAocAo2AoHAodAo3AoIAoeAo4AoJAofAo5AoKAogAo6AoLAohAo7Ao"
 	"MAoiAo8AoNAojAo9AoOAokAoPAolAoQAomAoRAooAoS";
-// static char small_buf[SMALL_BUF_SZ];
+static char small_buf[sizeof(test_str)];
 
 int test_nfs() {
 	int console_fd = sos_sys_open("90.txt", 0);
 	/* test a small string from the code segment */
 	int result = sos_sys_write(console_fd, test_str, strlen(test_str));
 	assert(result == strlen(test_str));
+
+	int fd2 = sos_sys_open("90.txt", FM_READ);
+	result = sos_sys_read(fd2, small_buf, strlen(test_str));
+	assert(result == strlen(test_str));
+	//
+	int fd3 = sos_sys_open("91.txt", FM_WRITE);
+	result = sos_sys_write(fd3, small_buf, strlen(test_str));
+	assert(result == strlen(test_str));
+
+	assert(memcmp(test_str, small_buf, sizeof(test_str)) == 0);
 
 	// /* test reading to a small buffer */
 	// result = sos_sys_read(console_fd, small_buf, SMALL_BUF_SZ);

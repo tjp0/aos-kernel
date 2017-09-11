@@ -45,7 +45,7 @@
 #include <utils/picoro.h>
 #include <utils/stack.h>
 #include "test_timer.h"
-#define verbose 2
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 

@@ -12,7 +12,7 @@
 #include <sys/kassert.h>
 
 #define NFS_TIMEOUT 1000 * 100  // 100ms
-#define NFS_BUFFER_SIZE 6002
+#define NFS_BUFFER_SIZE 7000
 
 #define POSIX_USER_BITSHIFT 6
 
@@ -203,6 +203,7 @@ struct nfs_fd_data {
 
 static int nfs_dev_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 						size_t length) {
+	trace(2);
 	char buffer[NFS_BUFFER_SIZE];
 	kassert(fd != NULL);
 	struct nfs_fd_data* data = fd->data;
@@ -211,29 +212,38 @@ static int nfs_dev_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 		size_t toread = (length - read <= NFS_BUFFER_SIZE) ? length - read
 														   : NFS_BUFFER_SIZE;
 		enum rpc_stat stat =
-			nfs_read(&data->fhandle, fd->offset + read, length,
+			nfs_read(&data->fhandle, fd->offset + read, toread,
 					 nfs_read_callback, (uintptr_t)current_coro());
 		if (stat != RPC_OK) {
 			return -stat;
 		}
+		trace(2);
 		struct nfs_read_callback_t* callback = yield(NULL);
 		int call_count = callback->count;
 
 		if (callback->status != NFS_OK) {
+			trace(2);
 			return -callback->status;
 		}
 		memcpy(buffer, callback->data, call_count);
-		if (copy_sos2vspace(buffer, procbuf, vspace, call_count, 0) < 0) {
+		trace(2);
+		if (copy_sos2vspace(buffer, procbuf + read, vspace, call_count, 0) <
+			0) {
+			trace(2);
 			goto read_err;
 		}
 		read += call_count;
-		if (call_count != toread) {
+		trace(2);
+		if (call_count == 0) {
+			trace(2);
 			break;
 		}
 	}
 	fd->offset += read;
+	trace(2);
 	return read;
 read_err:
+	trace(2);
 	return -1;
 }
 
