@@ -17,7 +17,10 @@
 #define VM_OKAY 0
 
 /* The flag that defines if the page has been recently accessed */
-#define PAGE_ACCESSED (1 << 4)
+#define PAGE_ACCESSED (1 << 3)
+#define PAGE_EXECUTABLE (1 << 2)
+#define PAGE_WRITABLE (1 << 1)
+#define PAGE_READABLE (1 << 0)
 /* Mask for the permissions section of the flags */
 #define PAGE_PERMMASK 0b00000011
 
@@ -53,6 +56,7 @@ struct page_table_entry* sos_map_page(struct page_directory* pd,
 
 void sos_handle_vmfault(struct process* process);
 
-int vm_swapout(struct page_directory* pd, struct page_table_entry* pte);
+int vm_swapout(struct page_table_entry* pte);
 bool vm_pageisloaded(struct page_table_entry* pte);
-int vm_swapin(struct page_directory* pd, struct page_table_entry* pte);
+int vm_swapin(struct page_table_entry* pte);
+int vm_swappage(void);

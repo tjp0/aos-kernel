@@ -21,8 +21,8 @@
 #include <mapping.h>
 #include <process.h>
 #include <ut_manager/ut.h>
+#include <vm.h>
 #include <vmem_layout.h>
-
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
@@ -30,12 +30,12 @@
 /*
  * Convert ELF permissions into seL4 permissions.
  */
-static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
+static inline seL4_Word get_vm_perms_from_elf(unsigned long permissions) {
 	seL4_Word result = 0;
 
-	if (permissions & PF_R) result |= seL4_CanRead;
-	if (permissions & PF_X) result |= seL4_CanRead;
-	if (permissions & PF_W) result |= seL4_CanWrite;
+	if (permissions & PF_R) result |= PAGE_READABLE;
+	if (permissions & PF_X) result |= PAGE_EXECUTABLE;
+	if (permissions & PF_W) result |= PAGE_WRITABLE;
 
 	return result;
 }
@@ -118,9 +118,9 @@ int elf_load(struct process *process, char *elf_file) {
 		/* Copy it across into the vspace. */
 		dprintf(0, " * Loading segment %08x-->%08x\n", (int)vaddr,
 				(int)(vaddr + segment_size));
-		err = load_segment_into_vspace(
-			&process->vspace, source_addr, segment_size, file_size, vaddr,
-			get_sel4_rights_from_elf(flags) & seL4_AllRights);
+		err = load_segment_into_vspace(&process->vspace, source_addr,
+									   segment_size, file_size, vaddr,
+									   get_vm_perms_from_elf(flags));
 		conditional_panic(err != 0, "Elf loading failed!\n");
 	}
 

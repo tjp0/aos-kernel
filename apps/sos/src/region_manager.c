@@ -8,6 +8,7 @@
 #include <sel4/sel4.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <vm.h>
 #include <vmem_layout.h>
 #define verbose 5
 #include <sys/debug.h>
@@ -17,17 +18,18 @@
 
 static int create_initial_regions(region_list* reg_list) {
 	region_node* ipc_buffer = add_region(reg_list, PROCESS_TOP, PAGE_SIZE_4K,
-										 seL4_CanRead | seL4_CanWrite);
+										 PAGE_READABLE | PAGE_WRITABLE);
 	if (ipc_buffer == NULL) {
 		return REGION_FAIL;
 	}
 
-	region_node* stack = add_region(reg_list, PROCESS_TOP - PAGE_SIZE_4K,
-									PAGE_SIZE_4K, seL4_CanRead | seL4_CanWrite);
+	region_node* stack =
+		add_region(reg_list, PROCESS_TOP - PAGE_SIZE_4K, PAGE_SIZE_4K,
+				   PAGE_READABLE | PAGE_WRITABLE);
 	if (stack == NULL) {
 		return REGION_FAIL;
 	}
-	ipc_buffer->name = "IPC BUFFER";
+	ipc_buffer->name = "IPC";
 	stack->name = "STACK";
 	reg_list->ipc_buffer = ipc_buffer;
 	reg_list->stack = stack;
@@ -183,7 +185,7 @@ region_node* create_heap(region_list* region_list) {
 	vaddr_t base_addr = prev->vaddr + prev->size + REGION_SAFETY;
 
 	region_node* heap =
-		add_region(region_list, base_addr, 0, seL4_CanWrite | seL4_CanWrite);
+		add_region(region_list, base_addr, 0, PAGE_READABLE | PAGE_WRITABLE);
 
 	if (heap == NULL) {
 		return NULL;
@@ -197,8 +199,18 @@ void regions_print(region_list* regions) {
 	region_node* cur = regions->start;
 	// printf("----------------------\n");
 	while (cur) {
-		printf("0x%08x -> 0x%08x: perm: %08u, | %s\n", cur->vaddr,
+		printf("0x%08x -> 0x%08x: perm: %08u, | %08s |", cur->vaddr,
 			   cur->vaddr + cur->size, cur->perm, cur->name);
+		if (cur->perm & PAGE_WRITABLE) {
+			printf(" WRITABLE");
+		}
+		if (cur->perm & PAGE_READABLE) {
+			printf(" READABLE");
+		}
+		if (cur->perm & PAGE_EXECUTABLE) {
+			printf(" EXECUTABLE");
+		}
+		printf("\n");
 
 		// if (cur->prev && cur->prev->vaddr) {
 		// 	printf("0x%08x -> 0x%08x: perm: %08u, | %s :0x%08x\n", cur->vaddr,

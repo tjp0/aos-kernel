@@ -158,5 +158,6 @@ struct process* process_create(char* app_name, seL4_CPtr fault_ep) {
 }
 
 void process_kill(struct process* process) {
+	regions_print(process->vspace.regions);
 	panic("Killing processes not implemented yet");
 }
