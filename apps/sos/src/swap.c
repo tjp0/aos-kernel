@@ -23,7 +23,6 @@ struct disk_page {
 
 int32_t current_diskpage = -1;
 int32_t current_offset = 0;
-static bool init = false;
 struct fd swapfile;
 struct lock* swap_lock;
 

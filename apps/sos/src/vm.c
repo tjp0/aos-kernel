@@ -9,14 +9,14 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 2
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
 
 static struct page_table_entry* clock_pointer;
-static uint32_t testfr = 0;
 
+static void* frame_alloc_swap();
 int pd_map_page(struct page_directory* pd, struct page_table_entry* page);
 static int vm_updatepage(struct page_table_entry* pte);
 static inline uint32_t vaddr_to_ptsoffset(vaddr_t address) {
@@ -86,17 +86,9 @@ static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
 	pte->flags = flags;
 	pte->cap = 0;
 
-	void* new_frame = frame_alloc();
-	while (new_frame == NULL) {
-		if (vm_swappage() != VM_OKAY) {
-			return NULL;
-		}
-		new_frame = frame_alloc();
-	}
-
-	testfr++;
-	if (testfr > 5) {
-		vm_swappage(); /* For debugging purposes */
+	void* new_frame = frame_alloc_swap();
+	if (new_frame == NULL) {
+		return NULL;
 	}
 	struct frame* frame = get_frame(new_frame);
 	pte->frame = frame;
@@ -302,13 +294,10 @@ int vm_swapout(struct page_table_entry* pte) {
 	return 0;
 }
 int vm_swapin(struct page_table_entry* pte) {
-	if (testfr > 10) {
-		vm_swappage();
-	}
 	trace(4);
 	kassert(pte != NULL);
 	kassert(pte->frame == NULL);
-	pte->frame = get_frame(frame_alloc());
+	pte->frame = get_frame(frame_alloc_swap());
 	if (pte->frame == NULL) {
 		dprintf(0, "Failed to allocate frame to swap in page\n");
 		return VM_FAIL;
@@ -505,4 +494,15 @@ int vm_swappage(void) {
 	}
 	trace(4);
 	return vm_swapout(clock_pointer);
+}
+
+static void* frame_alloc_swap() {
+	void* ret = frame_alloc();
+	while (ret == NULL) {
+		if (vm_swappage() != VM_OKAY) {
+			return NULL;
+		}
+		ret = frame_alloc();
+	}
+	return ret;
 }

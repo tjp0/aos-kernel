@@ -17,14 +17,10 @@
 
 #define FRAME_RESERVED 90000
 
-#define DEBUG_VALUE 13210387
-#define HEAVY_VETTING
+// For demo purposes, this is approx 480k of userland frames
+#define FRAME_TEST_MAX 20
 
-// TODO: Fix memory leak
-// Fix memory reserved
-// fix to use findmem
-// Fix memory free
-// Fix vmem layout
+#define DEBUG_VALUE 13210387
 
 struct frame* frame_table = NULL;
 
@@ -210,6 +206,9 @@ void sanity_check_frame_table(int id) {
 
 int frame_physical_alloc(void** vaddr) {
 	if (ft_numframes - frame_count < FRAME_RESERVED) {
+		return 1;
+	}
+	if (frame_count > FRAME_TEST_MAX && FRAME_TEST_MAX != 0) {
 		return 1;
 	}
 
