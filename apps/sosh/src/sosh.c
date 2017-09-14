@@ -267,6 +267,46 @@ static int benchmark(int argc, char *argv[]) {
 	}
 }
 
+static int thrash(int argc, char *argv[]) {
+	int pages = 400;
+	if (argc == 2) {
+		pages = atoi(argv[1]);
+	}
+	printf("Thrashing with (approximately) %d pages\n", pages);
+	srand(0);
+
+	int **page_array = calloc(pages, sizeof(int *));
+	if (page_array == NULL) {
+		printf("Mallocing page lookup table failed\n");
+		return -1;
+	}
+
+	for (int i = 0; i < pages; i++) {
+		page_array[i] = malloc(4096);
+		if (page_array[i] == NULL) {
+			printf("Failed to malloc for new page\n");
+			return -1;
+		}
+	}
+	printf("Pages malloced. Now to try writing\n");
+	for (int i = 0; i < pages; i++) {
+		memset(page_array[i], 'A', 4096);
+		page_array[i][4] = (int)page_array[i];
+		page_array[i][2] = rand();
+	}
+	printf("Pages seeded. Reading back values to confirm\n");
+	srand(0);
+	for (int i = 0; i < pages; i++) {
+		assert(page_array[i][2] == rand());
+		assert(page_array[i][4] == (int)page_array[i]);
+	}
+	printf("Thrashing complete. Freeing memory\n");
+	for (int i = 0; i < pages; i++) {
+		free(page_array[i]);
+	}
+	return 0;
+}
+
 struct command {
 	char *name;
 	int (*command)(int argc, char **argv);
@@ -283,7 +323,8 @@ struct command commands[] = {{"dir", dir},
 							 {"time", second_time},
 							 {"mtime", micro_time},
 							 {"kill", kill},
-							 {"benchmark", benchmark}};
+							 {"benchmark", benchmark},
+							 {"thrash", thrash}};
 
 int main(void) {
 	char buf[BUF_SIZ];

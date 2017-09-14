@@ -129,7 +129,6 @@ region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 		// kassert(prev->prev->next == prev);
 	}
 
-	regions_print(reg_list);
 	return new_node;
 }
 

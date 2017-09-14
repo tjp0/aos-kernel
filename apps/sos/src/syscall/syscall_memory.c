@@ -4,7 +4,7 @@
 #include <syscall/syscall_memory.h>
 #include <utils/page.h>
 
-#define verbose 5
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -36,7 +36,9 @@ uint32_t syscall_sbrk(struct process* process, uint32_t size) {
 		int err = expand_right(heap, sizeup);
 		trace(3);
 		if (err != REGION_GOOD) {
-			dprintf(2, "sbrk fail2\n");
+			dprintf(0, "sbrk fail\n");
+			dprintf(0, "Tried to sbrk 0x%08x bytes\n", size);
+			regions_print(process->vspace.regions);
 			return 0;
 		}
 	}
