@@ -17,6 +17,7 @@
 #define VM_OKAY 0
 
 /* The flag that defines if the page has been recently accessed */
+#define PAGE_PINNED (1 << 4)
 #define PAGE_ACCESSED (1 << 3)
 #define PAGE_EXECUTABLE (1 << 2)
 #define PAGE_WRITABLE (1 << 1)
@@ -28,8 +29,10 @@ struct page_table_entry {
 	uint8_t flags;
 	vaddr_t address;
 	struct frame* frame;
-	seL4_ARM_Page cap;
-	struct frame* tmp_frame;  // Remove this
+	union {
+		seL4_ARM_Page cap;
+		int32_t disk_frame_offset;
+	};
 	struct page_directory* pd;
 	struct page_table_entry* next;
 	struct page_table_entry* prev;
@@ -60,3 +63,7 @@ int vm_swapout(struct page_table_entry* pte);
 bool vm_pageisloaded(struct page_table_entry* pte);
 int vm_swapin(struct page_table_entry* pte);
 int vm_swappage(void);
+
+int32_t swapout_frame(const void* src);
+int32_t swap_init(void);
+int32_t swapin_frame(int32_t disk_page_offset, void* dst);

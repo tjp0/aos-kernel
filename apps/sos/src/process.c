@@ -1,4 +1,6 @@
+#include <copy.h>
 #include <cpio/cpio.h>
+#include <devices/devices.h>
 #include <elf/elf.h>
 #include <mapping.h>
 #include <process.h>
@@ -9,7 +11,6 @@
 #include "elf.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
-
 #define verbose 2
 #include <sys/debug.h>
 #include <sys/panic.h>
@@ -128,7 +129,7 @@ struct process* process_create(char* app_name, seL4_CPtr fault_ep) {
 	dprintf(0, "Mapping IPC buffer at vaddr 0x%x\n", ipc_region->vaddr);
 	struct page_table_entry* ipc_pte =
 		sos_map_page(process->vspace.pagetable, ipc_region->vaddr,
-					 seL4_CanWrite | seL4_CanRead);
+					 PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED);
 	conditional_panic(ipc_pte == NULL, "Failed to map IPC buffer");
 
 	/* Configure the TCB */
@@ -157,7 +158,29 @@ struct process* process_create(char* app_name, seL4_CPtr fault_ep) {
 	return process;
 }
 
+void process_coredump(struct process* process) {
+	printf("*************\n DUMPING CORE ************\n");
+	struct fd coredump;
+	nfs_dev_open(&coredump, "coredump.bin", FM_WRITE);
+
+	region_node* r = process->vspace.regions->start;
+	char* buffer = malloc(PAGE_SIZE_4K);
+	if (buffer == NULL) {
+		printf("Error dumping core\n");
+		return;
+	}
+	while (r != NULL) {
+		printf("Dumping region: %s\n", r->name);
+		for (uint32_t i = r->vaddr; i < r->vaddr + r->size; i += PAGE_SIZE_4K) {
+			coredump.offset = i;
+			coredump.dev_write(&coredump, &process->vspace, r->vaddr, r->size);
+		}
+		r = r->next;
+	}
+	printf("Process dumped\n");
+}
 void process_kill(struct process* process) {
 	regions_print(process->vspace.regions);
+	process_coredump(process);
 	panic("Killing processes not implemented yet");
 }

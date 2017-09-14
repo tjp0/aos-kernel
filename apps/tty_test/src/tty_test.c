@@ -33,33 +33,33 @@
 
 int main(void) {
 	test_nfs();
-	// char* array = malloc(16000);
+	char* array = malloc(16000);
 
-	// for (char i = 0; i < 255; i++) {
-	// 	array[(int)i] = i;
-	// }
-	// for (char i = 0; i < 255; i++) {
-	// 	assert(array[(int)i] == i);
-	// }
-	// printf("Running malloc test\n");
-	// pt_test();
+	for (int i = 0; i < 255; i++) {
+		array[(int)i] = i;
+	}
+	for (int i = 0; i < 255; i++) {
+		assert(array[(int)i] == i);
+	}
+	printf("Running malloc test\n");
+	pt_test();
 
-	// memset(array, 'C', 16000);
-	// array[16000 - 1] = 'B';
-	// sos_write(array, 16000);
+	memset(array, 'C', 16000);
+	array[16000 - 1] = 'B';
+	sos_write(array, 16000);
 
-	// printf("Running buf test\n");
-	// // test_buffers();
+	printf("Running buf test\n");
+	// test_buffers();
 
-	// do {
-	// 	printf("task:\tHello world, I'm\ttty_test!\n");
-	// 	// printf("World hole");
-	// 	int64_t microseconds = sos_sys_time_stamp();
-	// 	int64_t seconds = microseconds / (1000 * 1000);
-	// 	printf("Recieved timestamp: %lld (%lld seconds since boot)\n",
-	// 		   microseconds, seconds);
-	// 	sos_sys_usleep(1000);  // Implement this as a syscall
-	// } while (1);
+	do {
+		printf("task:\tHello world, I'm\ttty_test!\n");
+		// printf("World hole");
+		int64_t microseconds = sos_sys_time_stamp();
+		int64_t seconds = microseconds / (1000 * 1000);
+		printf("Recieved timestamp: %lld (%lld seconds since boot)\n",
+			   microseconds, seconds);
+		sos_sys_usleep(1000);  // Implement this as a syscall
+	} while (1);
 
 	return 0;
 }

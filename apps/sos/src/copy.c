@@ -77,6 +77,18 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 
 int64_t copy_sos2vspace(void* src, vaddr_t dest_vaddr, struct vspace* vspace,
 						int64_t len, uint32_t flags) {
+	/* If passed a null vspace, we're doing an intra-sos copy */
+	if (vspace == NULL) {
+		if (flags & COPY_VSPACE2SOS) {
+			trace(5);
+			memcpy(src, (void*)dest_vaddr, len);
+		} else {
+			trace(5);
+			memcpy((void*)dest_vaddr, src, len);
+		}
+		return len;
+	}
+
 	int64_t start_len = len;
 	trace(2);
 	/* Start by copying the part in the middle of the page */

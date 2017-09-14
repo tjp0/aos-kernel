@@ -45,7 +45,7 @@
 #include <utils/picoro.h>
 #include <utils/stack.h>
 #include "test_timer.h"
-#define verbose 0
+#define verbose 3
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -84,7 +84,7 @@ seL4_CPtr _sos_ipc_ep_cap;
 seL4_CPtr _sos_interrupt_ep_cap;
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
-static void sos_main(void);
+static void* sos_main(void* unusedarg);
 static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
 static void* _sos_late_init(void* unusedarg);
 
@@ -399,7 +399,13 @@ static void* _sos_late_init(void* unusedarg) {
 
 	/* Initialiase other system compenents here */
 	_sos_ipc_init(&_sos_ipc_ep_cap, &_sos_interrupt_ep_cap);
-	sos_main();  // Should never return
+	/* Main will yield at some point, at which point we'll start the main event
+	 * loop *
+	 * which will handle interrupts as SOS initializes */
+	coro main_func = coroutine(sos_main);
+	resume(main_func, NULL);
+	coro coro_event_loop = coroutine(event_loop);
+	resume(coro_event_loop, (void*)_sos_ipc_ep_cap);
 	panic("We should not be here");
 	return NULL;
 }
@@ -426,7 +432,7 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 								cur_cspace, ipc_ep);
 	conditional_panic(err, "Failed to allocate c-slot for IPC endpoint");
 }
-static void sos_main(void) {
+static void* sos_main(void* na) {
 	/* Initialise the network hardware */
 	network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 
@@ -435,18 +441,11 @@ static void sos_main(void) {
 
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
-	// test_timers();
-	// register_timer(1000 * 1000, &simple_timer_callback, NULL);
-
-	printf("Running frame test\n");
-	// frame_test();
+	conditional_panic(swap_init() < 0, "Swap init failed");
 
 	/* Start the user application */
 	start_first_process("First Process", _sos_ipc_ep_cap);
+	dprintf(0, "\nSOS fully initialized\n");
 
-	/* Wait on synchronous endpoint for IPC */
-	dprintf(0, "\nSOS entering syscall loop\n");
-
-	coro coro_event_loop = coroutine(event_loop);
-	resume(coro_event_loop, (void*)_sos_ipc_ep_cap);
+	return NULL;
 }

@@ -9,7 +9,7 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 6
+#define verbose 2
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -101,18 +101,19 @@ static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
 	struct frame* frame = get_frame(new_frame);
 	pte->frame = frame;
 
-	if (clock_pointer == NULL) {
-		clock_pointer = pte;
-		pte->next = pte;
-		pte->prev = pte;
-		return pte;
+	if (!(flags & PAGE_PINNED)) {
+		if (clock_pointer == NULL) {
+			clock_pointer = pte;
+			pte->next = pte;
+			pte->prev = pte;
+			return pte;
+		}
+
+		pte->next = clock_pointer;
+		pte->prev = clock_pointer->prev;
+		clock_pointer->prev = pte;
+		pte->prev->next = pte;
 	}
-
-	pte->next = clock_pointer;
-	pte->prev = clock_pointer->prev;
-	clock_pointer->prev = pte;
-	pte->prev->next = pte;
-
 	return pte;
 }
 
@@ -155,9 +156,9 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 	if (address == 0) {
 		return NULL;
 	}
-	dprintf(2, "Creating page at addr: 0x%x\n", address);
+	dprintf(3, "Creating page at addr: 0x%x\n", address);
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(address)];
-	dprintf(2, "New page 1st index: %u\n", vaddr_to_ptsoffset(address));
+	dprintf(3, "New page 1st index: %u\n", vaddr_to_ptsoffset(address));
 	if (pt == NULL) {
 		pt = create_pt(pd, address);
 		if (pt == NULL) {
@@ -165,23 +166,23 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 		}
 		pd->pts[vaddr_to_ptsoffset(address)] = pt;
 	}
-	dprintf(2, "New page 2nd index: %u\n", vaddr_to_pteoffset(address));
+	dprintf(3, "New page 2nd index: %u\n", vaddr_to_pteoffset(address));
 	struct page_table_entry* pte = pt->ptes[vaddr_to_pteoffset(address)];
 	if (pte == NULL) {
-		dprintf(1, "Creating new page table entry\n");
+		dprintf(2, "Creating new page table entry\n");
 		pte = create_pte(address, flags);
 
 		if (pte == NULL) {
 			return NULL;
 		}
 		pte->pd = pd;
-		dprintf(2, "Mapping page in\n");
+		dprintf(3, "Mapping page in\n");
 		if (pd_map_page(pd, pte) < 0) {
 			free_pte(pte);
 			return NULL;
 		}
 		pt->ptes[vaddr_to_pteoffset(address)] = pte;
-		dprintf(2, "New page created\n");
+		dprintf(3, "New page created\n");
 	}
 	return pte;
 }
@@ -272,14 +273,24 @@ bool vm_pageismarked(struct page_table_entry* pte) {
 int vm_swapout(struct page_table_entry* pte) {
 	kassert(pte != NULL);
 	kassert(pte->frame != NULL);
-	dprintf(1, "Swapping out page %08x in addrspace %p\n", pte->address,
+	kassert(!(pte->flags & PAGE_PINNED));
+	dprintf(2, "Swapping out page %08x in addrspace %p\n", pte->address,
 			pte->pd);
-	pte->tmp_frame = pte->frame;
-	pte->frame = NULL;
+
 	seL4_ARM_Page_Unmap(pte->cap);
 	cspace_delete_cap(cur_cspace, pte->cap);
-	pte->cap = 0;
 
+	pte->disk_frame_offset = swapout_frame(frame_cell_to_vaddr(pte->frame));
+	if (pte->disk_frame_offset < 0) {
+		dprintf(0, "Bad disk offset to swapout\n");
+		return VM_FAIL;
+	}
+
+	dprintf(1, "Swapped out page %08x in addrspace %p to %08x on disk\n",
+			pte->address, pte->pd, pte->disk_frame_offset);
+
+	frame_free(frame_cell_to_vaddr(pte->frame));
+	pte->frame = NULL;
 	pte->prev->next = pte->next;
 	pte->next->prev = pte->prev;
 	clock_pointer = pte->next;
@@ -292,16 +303,23 @@ int vm_swapout(struct page_table_entry* pte) {
 }
 int vm_swapin(struct page_table_entry* pte) {
 	if (testfr > 10) {
-		if (vm_swappage() != VM_OKAY) {
-			return VM_FAIL;
-		}
+		vm_swappage();
 	}
 	trace(4);
 	kassert(pte != NULL);
 	kassert(pte->frame == NULL);
-	pte->frame = pte->tmp_frame;
-	dprintf(1, "Swapping in page %08x in addrspace %p\n", pte->address,
-			pte->pd);
+	pte->frame = get_frame(frame_alloc());
+	if (pte->frame == NULL) {
+		dprintf(0, "Failed to allocate frame to swap in page\n");
+		return VM_FAIL;
+	}
+	dprintf(1, "Swapping in page %08x in addrspace %p from %08x on disk\n",
+			pte->address, pte->pd, pte->disk_frame_offset);
+	if (swapin_frame(pte->disk_frame_offset, frame_cell_to_vaddr(pte->frame)) <
+		0) {
+		goto fail3;
+	}
+
 	vaddr_t pt_addr = ut_alloc(seL4_PageTableBits);
 	if (pt_addr == 0) {
 		trace(4);
@@ -318,6 +336,9 @@ int vm_swapin(struct page_table_entry* pte) {
 		trace(4);
 		goto fail1;
 	}
+	seL4_ARM_Page_Unify_Instruction(pte->cap, 0, PAGE_SIZE_4K);
+	seL4_ARM_Page_CleanInvalidate_Data(pte->cap, 0, PAGE_SIZE_4K);
+
 	trace(4);
 	if (clock_pointer == NULL) {
 		trace(4);
@@ -338,8 +359,12 @@ fail1:
 	trace(4);
 	cspace_delete_cap(cur_cspace, pte->cap);
 	pte->cap = 0;
+	trace(0);
 	return VM_FAIL;
 fail3:
+	frame_free(frame_cell_to_vaddr(pte->frame));
+	pte->frame = NULL;
+	trace(0);
 	return VM_FAIL;
 }
 

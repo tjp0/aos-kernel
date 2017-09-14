@@ -19,5 +19,5 @@ void* frame_cell_to_vaddr(struct frame* frame_cell);
 void* frame_alloc(void);
 
 void ft_initialize(void);
-
+void frame_free(void* vaddr);
 void frame_test(void);

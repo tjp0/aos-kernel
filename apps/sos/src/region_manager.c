@@ -17,8 +17,9 @@
 #define REGION_SAFETY PAGE_SIZE_4K
 
 static int create_initial_regions(region_list* reg_list) {
-	region_node* ipc_buffer = add_region(reg_list, PROCESS_TOP, PAGE_SIZE_4K,
-										 PAGE_READABLE | PAGE_WRITABLE);
+	region_node* ipc_buffer =
+		add_region(reg_list, PROCESS_TOP, PAGE_SIZE_4K,
+				   PAGE_READABLE | PAGE_WRITABLE | PAGE_PINNED);
 	if (ipc_buffer == NULL) {
 		return REGION_FAIL;
 	}
@@ -209,6 +210,9 @@ void regions_print(region_list* regions) {
 		}
 		if (cur->perm & PAGE_EXECUTABLE) {
 			printf(" EXECUTABLE");
+		}
+		if (cur->perm & PAGE_PINNED) {
+			printf(" PINNED");
 		}
 		printf("\n");
 
