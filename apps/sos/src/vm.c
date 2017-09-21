@@ -309,11 +309,6 @@ int vm_swapin(struct page_table_entry* pte) {
 		goto fail3;
 	}
 
-	vaddr_t pt_addr = ut_alloc(seL4_PageTableBits);
-	if (pt_addr == 0) {
-		trace(4);
-		goto fail3;
-	}
 	/* Create the frame cap */
 	pte->cap = cspace_copy_cap(cur_cspace, cur_cspace, pte->frame->cap,
 							   seL4_AllRights);
