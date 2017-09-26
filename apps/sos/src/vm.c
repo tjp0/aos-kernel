@@ -322,10 +322,10 @@ int vm_swapout(struct page_table_entry* pte) {
 	dprintf(1, "Swapped out page %08x in addrspace %p to %08x on disk\n",
 			pte->address, pte->pd, pte->disk_frame_offset);
 
-	pte->frame = NULL;
 	trace(5);
 	dprintf(1, "** pte->frame: %p\n", (void*)pte->frame);
 	frame_free(frame_cell_to_vaddr(pte->frame));
+	pte->frame = NULL;
 	trace(5);
 	return 0;
 }
