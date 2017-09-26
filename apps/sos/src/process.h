@@ -20,8 +20,9 @@ struct process {
 	struct vspace vspace;
 
 	struct fd_table fds;
+	uint32_t pid;
+	char* name;
 };
-
-struct process* process_create(char* app_name, seL4_CPtr fault_ep);
-
+struct process* get_process(int32_t pid);
+struct process* process_create(char* app_name);
 void process_kill(struct process* process);

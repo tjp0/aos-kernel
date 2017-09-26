@@ -49,6 +49,7 @@ struct page_directory {
 };
 
 struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd);
+void pd_free(struct page_directory* pd);
 
 int vm_missingpage(struct vspace* vspace, vaddr_t address);
 
@@ -67,3 +68,4 @@ int vm_swappage(void);
 int32_t swapout_frame(const void* src);
 int32_t swap_init(void);
 int32_t swapin_frame(int32_t disk_page_offset, void* dst);
+void swapfree_frame(int32_t disk_page_offset);
