@@ -69,6 +69,8 @@ int unlock(struct lock *l) {
 	trace(5);
 	if (c) {
 		resume(c, 0);
+		trace(5);
+		// list_remove(l, c, cmp_equality);
 	}
 	trace(5);
 

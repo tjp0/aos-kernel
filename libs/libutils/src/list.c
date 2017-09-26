@@ -24,10 +24,11 @@ void *list_pop(list_t *l) {
 	if (!n) {
 		return NULL;
 	}
+	void *data = n->data;
 
 	list_remove(l, n->data, cmp_equality);
 
-	return n->data;
+	return data;
 }
 
 int list_init(list_t *l) {
