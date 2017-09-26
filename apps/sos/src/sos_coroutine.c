@@ -3,18 +3,35 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/debug.h>
+#include <sys/kassert.h>
 #include <utils/list.h>
+
+#define verbose 10
 
 #define UNLOCKED 0
 #define LOCKED 1
+
+static int resume_coro(void *coro);
+
+/* check if coro is already waiting on a lock */
+static int is_waiting_on(struct lock *l, coro c);
+
+/* coro to wait on a lock */
+static int wait_on(struct lock *l, coro c);
+
+/* returns true if (a == b) */
+static int cmp_equality(void *a, void *b);
+
+/* returns 1 if coro is locked, 0 if not locked. -1 on error */
+static int is_locked(struct lock *lock);
 
 struct lock {
 	bool locked;
 	list_t *coros_waiting; /* list of coros which are blocked on this lock */
 };
 
-/* linked list of locks */
-list_t *lock_list;
+struct signal {};
 
 void coro_sleep_awaken(uint32_t id, void *data) { resume((coro)data, 0); }
 
@@ -26,75 +43,74 @@ int coro_sleep(uint64_t delay) {
 	return 0;
 }
 
-int lock(struct lock *lock) {
-	int err;
-
-	if (is_locked(lock)) {
-		/* already locked, check that it exists in the list */
-		if (!list_exists(lock_list, lock, find_lock)) {
-			err = list_append(lock_list, (void *)lock);
-			if (err) {
-				return -1;
-			}
-		}
-
-		return 0;
+int lock(struct lock *l) {
+	if (is_locked(l)) {
+		trace(5);
+		wait_on(l, current_coro());
+		yield(0);
+		trace(5);
 	}
 
-	/* set as locked, insert into linked list */
-	lock->locked = LOCKED;
+	kassert(l->locked == UNLOCKED);
 
-	err = list_append(lock_list, lock);
-	if (err) {
-		lock->locked = UNLOCKED;
-		return -1;
-	}
+	l->locked = LOCKED;
 
 	return 0;
 }
 
-int unlock(struct lock *lock) {
+int unlock(struct lock *l) {
 	int err;
-	lock->locked = UNLOCKED;
+	l->locked = UNLOCKED;
 
-	/* resume any coros which are blocked on it */
-	err = list_foreach(lock->coros_waiting, resume_coro);
-	if (err) {
-		return -1;
+	trace(5);
+
+	coro c = (coro)list_pop(l->coros_waiting);
+	printf("current coro: %p, popped: %p\n", (void *)current_coro(), (void *)c);
+	trace(5);
+	if (c) {
+		resume(c, 0);
 	}
+	trace(5);
 
-	/* remove all previously blocked coros */
-	err = list_remove_all(lock->coros_waiting);
-	if (err) {
-		return -1;
-	}
+	// /* resume any coros which are blocked on it */
+	// err = list_foreach(lock->coros_waiting, resume_coro);
+	// if (err) {
+	// 	return -1;
+	// }
 
-	/* remove from lock_list. do this at the end since it inherently free's */
-	err = list_remove(lock_list, (void *)lock, find_lock);
+	// /* remove all previously blocked coros */
+	// err = list_remove_all(lock->coros_waiting);
+	// if (err) {
+	// 	return -1;
+	// }
 
-	return err;
+	return 0;
 }
 
 /* check if coro is already waiting on a lock */
-int is_waiting_on(struct lock *l, coro c) {
-	return list_exists(lock_list, (void *)c, find_lock);
+static int is_waiting_on(struct lock *l, coro c) {
+	trace(5);
+	return list_exists(l->coros_waiting, (void *)c, cmp_equality);
 }
 
 /* coro to wait on a lock */
-int wait_on(struct lock *l, coro c) {
+static int wait_on(struct lock *l, coro c) {
+	trace(5);
 	return list_append(l->coros_waiting, (void *)c);
 }
 
 /* function passed as an argument to list_foreach() during unlock() */
-int resume_coro(void *coro) {
+static int resume_coro(void *coro) {
+	trace(5);
 	resume(coro, 0);
+	trace(5);
 	return 0;
 }
 
-int find_lock(void *a, void *b) { return !(a == b); }
+static int cmp_equality(void *a, void *b) { return !(a == b); }
 
 /* returns 1 if lock is locked, -1 on error */
-int is_locked(struct lock *lock) {
+static int is_locked(struct lock *lock) {
 	if (!lock) {
 		return -1;
 	}
@@ -104,16 +120,6 @@ int is_locked(struct lock *lock) {
 
 /* returns NULL on error */
 struct lock *lock_create(void) {
-	/* lazily create linked list. not to be free'd */
-	if (!lock_list) {
-		lock_list = malloc(sizeof(list_t));
-		if (!lock_list) {
-			return NULL;
-		}
-
-		list_init(lock_list);
-	}
-
 	/* create new lock */
 	struct lock *l = malloc(sizeof(struct lock));
 
@@ -131,8 +137,12 @@ struct lock *lock_create(void) {
 
 	list_init(l->coros_waiting);
 
-	/* add it to lock_list */
-	list_append(lock_list, (void *)l);
-
 	return l;
 };
+
+void lock_destroy(struct lock *l) {
+	l->locked = UNLOCKED;
+	list_remove_all(l->coros_waiting);
+	list_destroy(l->coros_waiting);
+	free(l);
+}

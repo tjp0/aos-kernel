@@ -80,6 +80,8 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
 static void* sos_main(void* unusedarg);
 static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
 static void* _sos_late_init(void* unusedarg);
+void test_blocking(void);
+void* test_blocking_loop(void* data);
 
 /**
  * NFS mount point
@@ -449,9 +451,69 @@ static void* sos_main(void* na) {
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
 	conditional_panic(swap_init() < 0, "Swap init failed");
 
+	test_blocking();
+
 	/* Start the user application */
 	start_first_process("First Process", sos_syscall_cap);
 	dprintf(0, "\nSOS fully initialized\n");
+
+	return NULL;
+}
+
+void test_blocking(void) {
+	struct lock* l = lock_create();
+
+	printf("*** coro blocking test 1\n");
+
+	coro c0 = coroutine(test_blocking_loop);
+	printf("coro created: %p\n", (void*)c0);
+
+	coro c1 = coroutine(test_blocking_loop);
+	printf("coro created: %p\n", (void*)c1);
+
+	resume(c0, (void*)l);
+	resume(c1, (void*)l);
+
+	//    printf("*** coro blocking test 2\n");
+	//
+	//    coro c0 = coroutine(test_blocking_loop2);
+	//    printf("coro created: %p\n", (void *) c0);
+	//
+	//    coro c1 = coroutine(test_blocking_loop2);
+	//    printf("coro created: %p\n", (void *) c1);
+	//
+	//    resume(c0, (void *) l);
+	//    resume(c1, (void *) l);
+}
+
+void* test_blocking_loop(void* data) {
+	int i;
+	struct lock* l = (struct lock*)data;
+
+	lock(l);
+
+	for (i = 0; i < 10; i++) {
+		printf("sleeping.. current coro: %p\n", (void*)current_coro());
+		coro_sleep(1000 * 100);
+	}
+
+	assert(!unlock(l));
+
+	return NULL;
+}
+
+void* test_blocking_loop2(void* data) {
+	int i;
+	struct lock* l = (struct lock*)data;
+
+	lock(l);
+
+	for (i = 0; i < 10; i++) {
+		printf("sleeping.. current coro: %p\n", (void*)current_coro());
+		coro_sleep(1000 * 100);
+	}
+
+	assert(!unlock(l));
 
 	return NULL;
 }

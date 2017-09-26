@@ -7,7 +7,7 @@
 #include <string.h>
 #include <vm.h>
 
-#define verbose 0
+#define verbose 10
 #include <sys/debug.h>
 #include <sys/kassert.h>
 int32_t swapout_frame(const void* src);
@@ -64,6 +64,7 @@ int32_t swapout_frame(const void* src) {
 	kassert(swapfile.dev_write(&swapfile, NULL, (vaddr_t)src, PAGE_SIZE_4K) ==
 			PAGE_SIZE_4K);
 	unlock(swap_lock);
+	trace(4);
 	return swapped_diskpage;
 }
 
