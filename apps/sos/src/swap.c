@@ -85,3 +85,13 @@ int32_t swapin_frame(int32_t disk_page_offset, void* dst) {
 	trace(4);
 	return VM_OKAY;
 }
+
+/* The page is no longer needed, mark as unused */
+void swapfree_frame(int32_t disk_page_offset) {
+	lock(swap_lock);
+	swapfile.offset = disk_page_offset;
+	kassert(swapfile.dev_write(&swapfile, NULL, (vaddr_t)&current_diskpage,
+							   sizeof(int32_t)) == sizeof(int32_t));
+	current_diskpage = disk_page_offset;
+	unlock(swap_lock);
+}

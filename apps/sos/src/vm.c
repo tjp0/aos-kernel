@@ -9,7 +9,7 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 0
+#define verbose 2
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -17,6 +17,7 @@
 static struct page_table_entry* clock_pointer;
 
 static void* frame_alloc_swap();
+static void pte_free(struct page_table_entry* pte);
 int pd_map_page(struct page_directory* pd, struct page_table_entry* page);
 static int vm_updatepage(struct page_table_entry* pte);
 static inline uint32_t vaddr_to_ptsoffset(vaddr_t address) {
@@ -75,8 +76,24 @@ fail3:
 	return NULL;
 }
 
-static void free_pte(struct page_table_entry* pte) {
-	// TODO
+static void pt_free(struct page_table* pt) {
+	for (int i = 0; i < PTES_PER_TABLE; ++i) {
+		if (pt->ptes[i] != NULL) {
+			pte_free(pt->ptes[i]);
+		}
+	}
+	cspace_delete_cap(cur_cspace, pt->seL4_pt);
+	free(pt);
+}
+
+static void pte_free(struct page_table_entry* pte) {
+	if (vm_pageisloaded(pte)) {
+		frame_free(frame_cell_to_vaddr(pte->frame));
+		cspace_delete_cap(cur_cspace, pte->cap);
+	} else {
+		swapfree_frame(pte->disk_frame_offset);
+	}
+	free(pte);
 }
 
 static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
@@ -118,6 +135,16 @@ struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd) {
 	pd->seL4_pd = seL4_pd;
 	return pd;
 };
+
+void pd_free(struct page_directory* pd) {
+	for (int i = 0; i < PTS_PER_DIRECTORY; ++i) {
+		if (pd->pts[i] != NULL) {
+			pt_free(pd->pts[i]);
+		}
+	}
+	cspace_delete_cap(cur_cspace, pd->seL4_pd);
+	free(pd);
+}
 
 struct page_table_entry* pd_getpage(struct page_directory* pd,
 									vaddr_t address) {
@@ -170,7 +197,7 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 		pte->pd = pd;
 		dprintf(3, "Mapping page in\n");
 		if (pd_map_page(pd, pte) < 0) {
-			free_pte(pte);
+			pte_free(pte);
 			return NULL;
 		}
 		pt->ptes[vaddr_to_pteoffset(address)] = pte;
