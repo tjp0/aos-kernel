@@ -383,6 +383,7 @@ void sos_handle_vmfault(struct process* process) {
 	struct page_table_entry* pte =
 		pd_getpage(process->vspace.pagetable, fault.vaddr);
 
+	/* got page from pagetable */
 	if (pte != NULL) {
 		trace(5);
 
@@ -407,6 +408,7 @@ void sos_handle_vmfault(struct process* process) {
 		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
 		seL4_Send(reply_cap, reply);
 		trace(5);
+		cspace_free_slot(cur_cspace, reply_cap);
 		return;
 	}
 
