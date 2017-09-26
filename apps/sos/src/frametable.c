@@ -8,7 +8,7 @@
 #include <ut_manager/ut.h>
 #include <utils/page.h>
 #include <vmem_layout.h>
-#define verbose 2
+#define verbose 10
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -93,6 +93,7 @@ static inline struct frame* _vaddr_to_frame_cell(void* vaddr) {
 	return _paddr_to_frame_cell(_vaddr_to_paddr(vaddr));
 }
 void* _frame_cell_to_vaddr(struct frame* frame_cell) {
+	trace(5);
 	return _paddr_to_vaddr(_frame_cell_to_paddr(frame_cell));
 }
 /*
@@ -175,9 +176,11 @@ static inline seL4_Word frame_cell_to_paddr(struct frame* frame_table_pointer) {
 }
 
 void* frame_cell_to_vaddr(struct frame* frame_cell) {
+	trace(5);
 	check_frame_cell(frame_cell);
 	kassert(_frame_cell_to_vaddr(frame_cell) < ((void*)FRAME_VEND));
 	kassert(_frame_cell_to_vaddr(frame_cell) >= ((void*)FRAME_VSTART));
+	trace(5);
 	return _frame_cell_to_vaddr(frame_cell);
 }
 
@@ -318,16 +321,20 @@ struct frame* get_frame(void* addr) {
 }
 
 void frame_free(void* vaddr) {
+	trace(5);
 	kassert(vaddr_to_frame_cell(vaddr)->status == FRAME_INUSE);
 	if (frame_cache_tail < FRAME_CACHE_SIZE - 1) {
+		trace(5);
 		frame_cache_tail++;
 		frame_cache[frame_cache_tail] = vaddr;
 		vaddr_to_frame_cell(vaddr)->status = FRAME_FREE;
 	} else {
+		trace(5);
 		frame_physical_free(vaddr_to_frame_cell(vaddr));
 	}
 	dprintf(3, "Freed frame %p, frame cache is now %u\n", vaddr,
 			frame_cache_tail);
+	trace(5);
 }
 void ft_initialize(void) {
 	seL4_Word offset = 0;

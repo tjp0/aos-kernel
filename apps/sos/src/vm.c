@@ -9,7 +9,7 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 2
+#define verbose 10
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -263,6 +263,7 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	}
 
 	if (region == NULL) {
+		trace(5);
 		dprintf(0, "Failed to find region for missing page\n");
 		return VM_NOREGION;
 	}
@@ -290,6 +291,7 @@ bool vm_pageismarked(struct page_table_entry* pte) {
 	return (!(pte->flags & PAGE_ACCESSED));
 }
 int vm_swapout(struct page_table_entry* pte) {
+	trace(5);
 	kassert(pte != NULL);
 	kassert(pte->frame != NULL);
 	kassert(!(pte->flags & PAGE_PINNED));
@@ -299,16 +301,24 @@ int vm_swapout(struct page_table_entry* pte) {
 	seL4_ARM_Page_Unmap(pte->cap);
 	cspace_delete_cap(cur_cspace, pte->cap);
 
+	kassert(pte->frame != NULL);
+
 	pte->disk_frame_offset = swapout_frame(frame_cell_to_vaddr(pte->frame));
+	trace(5);
+	kassert(pte->frame != NULL);
 	if (pte->disk_frame_offset < 0) {
 		dprintf(0, "Bad disk offset to swapout\n");
 		return VM_FAIL;
 	}
 
+	kassert(pte->frame != NULL);
 	dprintf(1, "Swapped out page %08x in addrspace %p to %08x on disk\n",
 			pte->address, pte->pd, pte->disk_frame_offset);
 
+	trace(5);
+	dprintf(1, "** pte->frame: %p\n", (void*)pte->frame);
 	frame_free(frame_cell_to_vaddr(pte->frame));
+	trace(5);
 	pte->frame = NULL;
 	pte->prev->next = pte->next;
 	pte->next->prev = pte->prev;
@@ -318,6 +328,7 @@ int vm_swapout(struct page_table_entry* pte) {
 	if (clock_pointer == pte) {
 		clock_pointer = NULL;
 	}
+	trace(5);
 	return 0;
 }
 int vm_swapin(struct page_table_entry* pte) {
