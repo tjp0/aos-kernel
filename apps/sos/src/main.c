@@ -154,6 +154,12 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		case SOS_SYSCALL_PROCESS_CREATE: {
 			err = syscall_process_create(process, arg1);
 		} break;
+		/* This syscall should never return */
+		case SOS_SYSCALL_EXIT: {
+			err = syscall_process_exit(process, arg1);
+			cspace_free_slot(cur_cspace, reply_cap);
+			return;
+		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);

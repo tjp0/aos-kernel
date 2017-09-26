@@ -25,4 +25,4 @@ struct process {
 };
 struct process* get_process(int32_t pid);
 struct process* process_create(char* app_name);
-void process_kill(struct process* process);
+void process_kill(struct process* process, uint32_t status);

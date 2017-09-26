@@ -272,8 +272,19 @@ void process_coredump(struct process* process) {
 	}
 	printf("Process dumped\n");
 }
-void process_kill(struct process* process) {
+/* Currently only works if a process kills itself */
+void process_kill(struct process* process, uint32_t status) {
 	regions_print(process->vspace.regions);
-	process_coredump(process);
-	panic("Killing processes not implemented yet");
+	// process_coredump(process);
+
+	fd_table_close(&process->fds);
+	cspace_delete_cap(cur_cspace, process->tcb_cap);
+	cspace_delete_cap(cur_cspace, process->ipc_buffer_cap);
+	pd_free(process->vspace.pagetable);
+	cspace_destroy(process->croot);
+	region_list_destroy(process->vspace.regions);
+	process_table[process->pid] = NULL;
+	free(process->name);
+	free(process);
+	//	panic("Killing processes not implemented yet");
 }

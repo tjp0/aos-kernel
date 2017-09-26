@@ -240,7 +240,8 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 }
 
 int vm_missingpage(struct vspace* vspace, vaddr_t address) {
-	dprintf(1, "VM MISSING PAGE CALLED AT ADDRESS %p\n", (void*)address);
+	dprintf(1, "VM MISSING PAGE CALLED AT ADDRESS (%p:%p)\n", vspace->pagetable,
+			(void*)address);
 	address = PAGE_ALIGN_4K(address);
 
 	struct page_table_entry* pte;
@@ -418,7 +419,7 @@ void sos_handle_vmfault(struct process* process) {
 			int err = vm_swapin(pte);
 			if (err != VM_OKAY) {
 				dprintf(0, "Out of memory\n");
-				process_kill(process);
+				process_kill(process, -1);
 			}
 		} else if (vm_pageismarked(pte)) {
 			trace(5);
@@ -429,7 +430,7 @@ void sos_handle_vmfault(struct process* process) {
 			trace(5);
 			dprintf(0, "Invalid memory permissions for process\n");
 			dprint_fault(0, fault);
-			process_kill(process);
+			process_kill(process, -1);
 		}
 		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
 		seL4_Send(reply_cap, reply);
@@ -445,7 +446,7 @@ void sos_handle_vmfault(struct process* process) {
 			trace(5);
 			dprintf(0, "Invalid memory access for process\n");
 			dprint_fault(0, fault);
-			process_kill(process);
+			process_kill(process, -1);
 		}
 		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
 		seL4_Send(reply_cap, reply);
@@ -454,7 +455,7 @@ void sos_handle_vmfault(struct process* process) {
 		print_fault(fault);
 		regions_print(process->vspace.regions);
 		printf("Unable to handle process fault\n");
-		process_kill(process);
+		process_kill(process, -1);
 	}
 
 	cspace_free_slot(cur_cspace, reply_cap);

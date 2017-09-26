@@ -37,3 +37,4 @@ static inline int SYSCALL_ARG0(int syscall_no) {
 #define SOS_SYSCALL_STAT 9
 #define SOS_SYSCALL_GETDIRENT 10
 #define SOS_SYSCALL_PROCESS_CREATE 11
+#define SOS_SYSCALL_EXIT 12

@@ -20,3 +20,8 @@ int syscall_process_create(struct process* process, vaddr_t path) {
 
 	return new_process->pid;
 }
+
+int syscall_process_exit(struct process* process, uint32_t status) {
+	process_kill(process, status);
+	return 0;
+}
