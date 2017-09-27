@@ -274,6 +274,6 @@ void process_coredump(struct process* process) {
 }
 void process_kill(struct process* process) {
 	regions_print(process->vspace.regions);
-	process_coredump(process);
+	// process_coredump(process);
 	panic("Killing processes not implemented yet");
 }

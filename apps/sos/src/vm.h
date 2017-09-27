@@ -36,6 +36,7 @@ struct page_table_entry {
 	struct page_directory* pd;
 	struct page_table_entry* next;
 	struct page_table_entry* prev;
+	struct lock* lock;
 };
 
 struct page_table {
