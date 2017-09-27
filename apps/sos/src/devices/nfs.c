@@ -7,7 +7,7 @@
 #include <sos.h>
 #include <utils/math.h>
 #include <utils/picoro.h>
-#define verbose 10
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 

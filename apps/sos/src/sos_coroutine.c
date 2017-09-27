@@ -7,7 +7,7 @@
 #include <sys/kassert.h>
 #include <utils/list.h>
 
-#define verbose 10
+#define verbose 0
 
 #define UNLOCKED 0
 #define LOCKED 1
@@ -65,7 +65,8 @@ int unlock(struct lock *l) {
 	trace(5);
 
 	coro c = (coro)list_pop(l->coros_waiting);
-	printf("current coro: %p, popped: %p\n", (void *)current_coro(), (void *)c);
+	dprintf(5, "current coro: %p, popped: %p\n", (void *)current_coro(),
+			(void *)c);
 	trace(5);
 	if (c) {
 		resume(c, 0);

@@ -8,7 +8,7 @@
 #include <ut_manager/ut.h>
 #include <utils/page.h>
 #include <vmem_layout.h>
-#define verbose 10
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -93,7 +93,6 @@ static inline struct frame* _vaddr_to_frame_cell(void* vaddr) {
 	return _paddr_to_frame_cell(_vaddr_to_paddr(vaddr));
 }
 void* _frame_cell_to_vaddr(struct frame* frame_cell) {
-	trace(5);
 	return _paddr_to_vaddr(_frame_cell_to_paddr(frame_cell));
 }
 /*
@@ -176,11 +175,9 @@ static inline seL4_Word frame_cell_to_paddr(struct frame* frame_table_pointer) {
 }
 
 void* frame_cell_to_vaddr(struct frame* frame_cell) {
-	trace(5);
 	check_frame_cell(frame_cell);
 	kassert(_frame_cell_to_vaddr(frame_cell) < ((void*)FRAME_VEND));
 	kassert(_frame_cell_to_vaddr(frame_cell) >= ((void*)FRAME_VSTART));
-	trace(5);
 	return _frame_cell_to_vaddr(frame_cell);
 }
 
