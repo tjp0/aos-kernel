@@ -73,7 +73,7 @@ static void *pass(coro me, void *arg) {
 	static void *saved;
 	saved = arg;
 	if (!setjmp(me->state)) longjmp(running->state, 1);
-	printf("******* JUMPING TO STACK: %d\n", me->counter);
+	// printf("******* JUMPING TO STACK: %d\n", me->counter);
 	return (saved);
 }
 

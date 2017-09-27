@@ -7,7 +7,7 @@
 #include <sys/kassert.h>
 #include <utils/list.h>
 
-#define verbose 10
+#define verbose 0
 
 #define UNLOCKED 0
 #define LOCKED 1
@@ -31,7 +31,41 @@ struct lock {
 	list_t *coros_waiting; /* list of coros which are blocked on this lock */
 };
 
-struct signal {};
+struct semaphore {
+	int count;
+	coro c; /* coro to resume when semaphore */
+}
+
+struct semaphore *
+semaphore_create(coro c) {
+	struct semaphore *s = malloc(sizeof(struct semaphore));
+	if (!s) {
+		return NULL;
+	}
+
+	s->count = 0;
+	s->coro = coro;
+}
+
+int semaphore_destroy(struct semaphore *s) {
+	s->count = 0;
+	s->coro = NULL;
+	free(s);
+}
+
+int signal(struct semaphore *s) {
+	s->count -= 1;
+	if (s->count == 0) {
+		resume(s->coro, 0);
+		semaphore_destroy(s);
+	}
+}
+
+int wait(struct semaphore *s) {
+	s->count += 1;
+	yield();
+	return 0;
+}
 
 void coro_sleep_awaken(uint32_t id, void *data) { resume((coro)data, 0); }
 
