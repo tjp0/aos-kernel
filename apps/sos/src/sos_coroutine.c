@@ -12,13 +12,8 @@
 #define UNLOCKED 0
 #define LOCKED 1
 
+/* passed to the list library in foreach() */
 static int resume_coro(void *coro);
-
-/* check if coro is already waiting on a lock */
-static int is_waiting_on(struct lock *l, coro c);
-
-/* coro to wait on a lock */
-static int wait_on(struct lock *l, coro c);
 
 /* returns true if (a == b) */
 static int cmp_equality(void *a, void *b);
@@ -33,39 +28,12 @@ struct lock {
 
 struct semaphore {
 	int count;
-	coro c; /* coro to resume when semaphore */
-}
+	list_t *coros_waiting;
+};
 
-struct semaphore *
-semaphore_create(coro c) {
-	struct semaphore *s = malloc(sizeof(struct semaphore));
-	if (!s) {
-		return NULL;
-	}
-
-	s->count = 0;
-	s->coro = coro;
-}
-
-int semaphore_destroy(struct semaphore *s) {
-	s->count = 0;
-	s->coro = NULL;
-	free(s);
-}
-
-int signal(struct semaphore *s) {
-	s->count -= 1;
-	if (s->count == 0) {
-		resume(s->coro, 0);
-		semaphore_destroy(s);
-	}
-}
-
-int wait(struct semaphore *s) {
-	s->count += 1;
-	yield();
-	return 0;
-}
+/*
+ * coro sleep
+ */
 
 void coro_sleep_awaken(uint32_t id, void *data) { resume((coro)data, 0); }
 
@@ -77,83 +45,56 @@ int coro_sleep(uint64_t delay) {
 	return 0;
 }
 
-int lock(struct lock *l) {
-	if (is_locked(l)) {
-		trace(5);
-		wait_on(l, current_coro());
-		yield(0);
-		trace(5);
+/*
+ * semaphore primitives
+ */
+
+struct semaphore *semaphore_create(void) {
+	struct semaphore *s = malloc(sizeof(struct semaphore));
+	if (!s) {
+		return NULL;
 	}
 
-	kassert(l->locked == UNLOCKED);
+	s->count = 0;
+	s->coros_waiting = malloc(sizeof(list_t));
 
-	l->locked = LOCKED;
+	if (!s->coros_waiting) {
+		free(s);
+		return NULL;
+	}
 
+	list_init(s->coros_waiting);
+
+	return s;
+}
+
+int semaphore_destroy(struct semaphore *s) {
+	s->count = 0;
+	list_remove_all(s->coros_waiting);
+	free(s->coros_waiting);
+	free(s);
 	return 0;
 }
 
-int unlock(struct lock *l) {
-	int err;
-	l->locked = UNLOCKED;
-
-	trace(5);
-
-	coro c = (coro)list_pop(l->coros_waiting);
-	dprintf(5, "current coro: %p, popped: %p\n", (void *)current_coro(),
-			(void *)c);
-	trace(5);
-	if (c) {
-		resume(c, 0);
-		trace(5);
-		// list_remove(l, c, cmp_equality);
+int signal(struct semaphore *s) {
+	s->count -= 1;
+	if (s->count == 0) {
+		/* resume coros */
+		list_foreach(s->coros_waiting, resume_coro);
 	}
-	trace(5);
-
-	// /* resume any coros which are blocked on it */
-	// err = list_foreach(lock->coros_waiting, resume_coro);
-	// if (err) {
-	// 	return -1;
-	// }
-
-	// /* remove all previously blocked coros */
-	// err = list_remove_all(lock->coros_waiting);
-	// if (err) {
-	// 	return -1;
-	// }
-
 	return 0;
 }
 
-/* check if coro is already waiting on a lock */
-static int is_waiting_on(struct lock *l, coro c) {
-	trace(5);
-	return list_exists(l->coros_waiting, (void *)c, cmp_equality);
-}
-
-/* coro to wait on a lock */
-static int wait_on(struct lock *l, coro c) {
-	trace(5);
-	return list_append(l->coros_waiting, (void *)c);
-}
-
-/* function passed as an argument to list_foreach() during unlock() */
-static int resume_coro(void *coro) {
-	trace(5);
-	resume(coro, 0);
-	trace(5);
+int wait(struct semaphore *s) {
+	s->count += 1;
+	list_append(s->coros_waiting, current_coro());
+	yield(0);
 	return 0;
 }
 
-static int cmp_equality(void *a, void *b) { return !(a == b); }
-
-/* returns 1 if lock is locked, -1 on error */
-static int is_locked(struct lock *lock) {
-	if (!lock) {
-		return -1;
-	}
-
-	return lock->locked;
-}
+/*
+ * lock primitives
+ */
 
 /* returns NULL on error */
 struct lock *lock_create(void) {
@@ -180,6 +121,63 @@ struct lock *lock_create(void) {
 void lock_destroy(struct lock *l) {
 	l->locked = UNLOCKED;
 	list_remove_all(l->coros_waiting);
-	list_destroy(l->coros_waiting);
+	free(l->coros_waiting);
 	free(l);
+}
+
+int lock(struct lock *l) {
+	if (is_locked(l)) {
+		trace(5);
+		list_append(l->coros_waiting, current_coro());
+		yield(0);
+		trace(5);
+	}
+
+	kassert(l->locked == UNLOCKED);
+
+	l->locked = LOCKED;
+
+	return 0;
+}
+
+/* lock becomes unlocked. resume the next coro available */
+int unlock(struct lock *l) {
+	l->locked = UNLOCKED;
+
+	trace(5);
+
+	coro c = (coro)list_pop(l->coros_waiting);
+	dprintf(5, "current coro: %p, popped: %p\n", (void *)current_coro(),
+			(void *)c);
+	trace(5);
+	if (c) {
+		resume(c, 0);
+		trace(5);
+	}
+	trace(5);
+
+	return 0;
+}
+
+/*
+ * helpers
+ */
+
+/* function passed as an argument to list_foreach() during unlock() */
+static int resume_coro(void *coro) {
+	trace(5);
+	resume(coro, 0);
+	trace(5);
+	return 0;
+}
+
+static int cmp_equality(void *a, void *b) { return !(a == b); }
+
+/* returns 1 if lock is locked, -1 on error */
+static int is_locked(struct lock *lock) {
+	if (!lock) {
+		return -1;
+	}
+
+	return lock->locked;
 }
