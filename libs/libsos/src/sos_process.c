@@ -21,7 +21,8 @@ pid_t sos_process_wait(pid_t pid) {
 	return -1;
 }
 
+pid_t sos_my_id(void) { return SYSCALL_ARG0(SOS_SYSCALL_PROCESS_MY_ID); }
+
 int sos_process_status(sos_process_t *processes, unsigned max) {
-	assert(!"sos_process_status not implemented");
-	return -1;
+	return SYSCALL_ARG2(SOS_SYSCALL_PROCESS_STATUS, processes, max);
 }

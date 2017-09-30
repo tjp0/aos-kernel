@@ -307,6 +307,12 @@ static int thrash(int argc, char *argv[]) {
 	return 0;
 }
 
+static int id(int argc, char *argv[]) {
+	int id = (int)sos_my_id();
+	printf("%d\n", id);
+	return 0;
+}
+
 struct command {
 	char *name;
 	int (*command)(int argc, char **argv);
@@ -324,6 +330,7 @@ struct command commands[] = {{"dir", dir},
 							 {"mtime", micro_time},
 							 {"kill", kill},
 							 {"benchmark", benchmark},
+							 {"id", id},
 							 {"thrash", thrash}};
 
 int main(void) {

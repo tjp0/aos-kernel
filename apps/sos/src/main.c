@@ -160,6 +160,12 @@ void handle_syscall(seL4_Word badge, int num_args) {
 			cspace_free_slot(cur_cspace, reply_cap);
 			return;
 		} break;
+		case SOS_SYSCALL_PROCESS_MY_ID: {
+			err = syscall_process_my_id(process);
+		} break;
+		case SOS_SYSCALL_PROCESS_STATUS: {
+			err = syscall_process_status(process, arg1, arg2);
+		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);

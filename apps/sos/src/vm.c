@@ -90,6 +90,7 @@ static void pt_free(struct page_table* pt) {
 }
 
 static void pte_free(struct page_table_entry* pte) {
+	pte->pd->num_ptes--;
 	if (vm_pageisloaded(pte)) {
 		frame_free(frame_cell_to_vaddr(pte->frame));
 		cspace_delete_cap(cur_cspace, pte->cap);
@@ -134,6 +135,7 @@ static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
 		clock_pointer->prev = pte;
 		pte->prev->next = pte;
 	}
+
 	return pte;
 }
 
@@ -144,6 +146,7 @@ struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd) {
 	}
 	pd = memset(pd, 0, sizeof(struct page_directory));
 	pd->seL4_pd = seL4_pd;
+	pd->num_ptes = 0;
 	return pd;
 };
 
@@ -214,6 +217,7 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 			return NULL;
 		}
 		pt->ptes[vaddr_to_pteoffset(address)] = pte;
+		pd->num_ptes++;
 		dprintf(3, "New page created\n");
 	}
 	return pte;

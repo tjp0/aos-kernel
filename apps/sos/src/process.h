@@ -1,8 +1,11 @@
 #pragma once
+#include <clock/clock.h>
 #include <cspace/cspace.h>
 #include <filetable.h>
 #include <region_manager.h>
 #include <sel4/sel4.h>
+#define MAX_PROCESSES (256)
+
 struct vspace {
 	struct page_directory* pagetable;
 	region_list* regions;
@@ -22,7 +25,11 @@ struct process {
 	struct fd_table fds;
 	uint32_t pid;
 	char* name;
+	timestamp_t start_time;
 };
+
+extern struct process* process_table[MAX_PROCESSES];
+
 struct process* get_process(int32_t pid);
 struct process* process_create(char* app_name);
 void process_kill(struct process* process, uint32_t status);

@@ -6,7 +6,7 @@
 
 /*
  *	Virtual Memory System
-*/
+ */
 
 #define PAGE_SIZE PAGE_SIZE_4K
 #define PTES_PER_TABLE 256
@@ -47,6 +47,7 @@ struct page_table {
 struct page_directory {
 	seL4_ARM_PageDirectory seL4_pd;
 	struct page_table* pts[PTS_PER_DIRECTORY];
+	uint32_t num_ptes;
 };
 
 struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd);

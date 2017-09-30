@@ -1,3 +1,4 @@
+#include <clock/clock.h>
 #include <copy.h>
 #include <cpio/cpio.h>
 #include <devices/devices.h>
@@ -21,9 +22,6 @@ extern char _cpio_archive[];
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
 #define USER_EP_CAP (1)
-
-// Fix these up later to support multiple processes
-#define MAX_PROCESSES (256)
 
 /* PID 0 is reserved, not used for anything */
 struct process* process_table[MAX_PROCESSES];
@@ -216,6 +214,7 @@ struct process* process_create(char* app_name) {
 
 	dprintf(0, "ELF ENTRY POINT IS %x\n", context.pc);
 	dprintf(0, "*** PROCESS STARTING (PID: %u) ***\n", process->pid);
+	process->start_time = time_stamp();
 	seL4_TCB_WriteRegisters(process->tcb_cap, 1, 0, 2, &context);
 
 	return process;
