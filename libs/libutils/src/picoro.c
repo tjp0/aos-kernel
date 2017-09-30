@@ -11,6 +11,7 @@
 #include <utils/picoro.h>
 
 #define CORO_STACK_PAGES 8
+//#define CORO_DEBUG
 
 #pragma GCC push_options
 
@@ -35,6 +36,7 @@
 static struct coro {
 	struct coro *next;
 	jmp_buf state;
+	int counter;
 } first, *running = &first, *idle;
 
 /*
@@ -72,6 +74,9 @@ static void *pass(coro me, void *arg) {
 	static void *saved;
 	saved = arg;
 	if (!setjmp(me->state)) longjmp(running->state, 1);
+#ifdef CORO_DEBUG
+	printf("******* JUMPING TO STACK: %d\n", me->counter);
+#endif
 	return (saved);
 }
 
@@ -133,9 +138,16 @@ coro coroutine(void *fun(void *arg)) {
  * The conversion between the function pointer and a void pointer is not
  * allowed by ANSI C but we do it anyway.
  */
+#ifdef CORO_DEBUG
+static int counter = 0;
+#endif
 void coroutine_main(void *ret) {
 	void *(*fun)(void *arg);
 	struct coro me;
+#ifdef CORO_DEBUG
+	me.counter = counter;
+	counter++;
+#endif
 	push(&idle, &me);
 	fun = pass(&me, ret);
 	if (!setjmp(running->state)) coroutine_start();

@@ -318,16 +318,20 @@ struct frame* get_frame(void* addr) {
 }
 
 void frame_free(void* vaddr) {
+	trace(5);
 	kassert(vaddr_to_frame_cell(vaddr)->status == FRAME_INUSE);
 	if (frame_cache_tail < FRAME_CACHE_SIZE - 1) {
+		trace(5);
 		frame_cache_tail++;
 		frame_cache[frame_cache_tail] = vaddr;
 		vaddr_to_frame_cell(vaddr)->status = FRAME_FREE;
 	} else {
+		trace(5);
 		frame_physical_free(vaddr_to_frame_cell(vaddr));
 	}
 	dprintf(3, "Freed frame %p, frame cache is now %u\n", vaddr,
 			frame_cache_tail);
+	trace(5);
 }
 void ft_initialize(void) {
 	seL4_Word offset = 0;
