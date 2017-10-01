@@ -14,6 +14,11 @@ struct vspace {
 	vaddr_t sbrk;
 };
 
+enum process_status {
+	PROCESS_ALIVE = 0,
+	PROCESS_ZOMBIE,
+};
+
 struct process {
 	seL4_Word tcb_addr;
 	seL4_TCB tcb_cap;
@@ -28,6 +33,7 @@ struct process {
 	char* name;
 	timestamp_t start_time;
 
+	enum process_status status;
 	coro current_coroutine;
 	struct semaphore* event_finished_syscall;
 };

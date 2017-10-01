@@ -17,10 +17,12 @@
 #include "vmem_layout.h"
 #define verbose 2
 #include <sys/debug.h>
+#include <sys/kassert.h>
 #include <sys/panic.h>
 
 extern char _cpio_archive[];
 
+void process_zombie_reap(struct process* process);
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
 #define USER_EP_CAP (1)
@@ -79,7 +81,12 @@ struct process* process_create(char* app_name) {
 	if (process->pid == 0) {
 		goto err1;
 	}
-	process_table[process->pid] = process;
+
+	struct process* existing_process;
+	if ((existing_process = process_table[process->pid]) != NULL) {
+		kassert(existing_process->status == PROCESS_ZOMBIE);
+		process_zombie_reap(existing_process);
+	}
 
 	process->name = strdup(app_name);
 
@@ -212,6 +219,9 @@ struct process* process_create(char* app_name) {
 		goto err15;
 	}
 
+	/* Register the process in the process table */
+	process->status = PROCESS_ALIVE;
+	process_table[process->pid] = process;
 	/* Start the new process */
 	memset(&context, 0, sizeof(context));
 	context.pc = elf_getEntryPoint(elf_base);
@@ -283,13 +293,20 @@ void process_coredump(struct process* process) {
 }
 /* Currently only works if a process kills itself */
 void process_kill(struct process* process, uint32_t status) {
-	regions_print(process->vspace.regions);
-	// process_coredump(process);
+	kassert(process != NULL);
 	trace(1);
+	if (process->status == PROCESS_ZOMBIE) {
+		return;
+	}
+
 	if (process->current_coroutine != NULL &&
 		process->current_coroutine != current_coro()) {
 		wait(process->event_finished_syscall);
 	}
+	if (process->status == PROCESS_ZOMBIE) {
+		return;
+	}
+
 	trace(1);
 
 	semaphore_destroy(process->event_finished_syscall);
@@ -306,11 +323,12 @@ void process_kill(struct process* process, uint32_t status) {
 	trace(1);
 	region_list_destroy(process->vspace.regions);
 	trace(1);
-	process_table[process->pid] = NULL;
-	trace(1);
-	free(process->name);
-	trace(1);
-	free(process);
-	trace(1);
+	process->status = PROCESS_ZOMBIE;
 	//	panic("Killing processes not implemented yet");
+}
+void process_zombie_reap(struct process* process) {
+	kassert(process != NULL);
+	process_table[process->pid] = NULL;
+	free(process->name);
+	free(process);
 }
