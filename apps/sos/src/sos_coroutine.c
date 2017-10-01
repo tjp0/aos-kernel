@@ -7,7 +7,7 @@
 #include <sys/kassert.h>
 #include <utils/list.h>
 
-#define verbose 0
+#define verbose 6
 
 #define UNLOCKED 0
 #define LOCKED 1
@@ -27,7 +27,6 @@ struct lock {
 };
 
 struct semaphore {
-	int count;
 	list_t *coros_waiting;
 };
 
@@ -55,7 +54,6 @@ struct semaphore *semaphore_create(void) {
 		return NULL;
 	}
 
-	s->count = 0;
 	s->coros_waiting = malloc(sizeof(list_t));
 
 	if (!s->coros_waiting) {
@@ -69,7 +67,6 @@ struct semaphore *semaphore_create(void) {
 }
 
 int semaphore_destroy(struct semaphore *s) {
-	s->count = 0;
 	list_remove_all(s->coros_waiting);
 	free(s->coros_waiting);
 	free(s);
@@ -77,16 +74,13 @@ int semaphore_destroy(struct semaphore *s) {
 }
 
 int signal(struct semaphore *s) {
-	s->count -= 1;
-	if (s->count == 0) {
-		/* resume coros */
-		list_foreach(s->coros_waiting, resume_coro);
-	}
+	/* resume coros */
+	list_foreach(s->coros_waiting, resume_coro);
+
 	return 0;
 }
 
 int wait(struct semaphore *s) {
-	s->count += 1;
 	list_append(s->coros_waiting, current_coro());
 	yield(0);
 	return 0;
@@ -166,6 +160,7 @@ int unlock(struct lock *l) {
 /* function passed as an argument to list_foreach() during unlock() */
 static int resume_coro(void *coro) {
 	trace(5);
+	dprintf(0, "coro %p\n", coro);
 	resume(coro, 0);
 	trace(5);
 	return 0;

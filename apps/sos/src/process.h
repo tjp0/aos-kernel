@@ -4,6 +4,7 @@
 #include <filetable.h>
 #include <region_manager.h>
 #include <sel4/sel4.h>
+#include <utils/picoro.h>
 #define MAX_PROCESSES (256)
 
 struct vspace {
@@ -26,6 +27,9 @@ struct process {
 	uint32_t pid;
 	char* name;
 	timestamp_t start_time;
+
+	coro current_coroutine;
+	struct semaphore* event_finished_syscall;
 };
 
 extern struct process* process_table[MAX_PROCESSES];

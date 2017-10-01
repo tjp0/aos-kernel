@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <utils/picoro.h>
 
+// Toggle semaphore
+// you create a semaphore
+// and other coroutines wait() until you signal()
+
 struct lock;
 struct semaphore;
 

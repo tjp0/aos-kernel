@@ -40,3 +40,4 @@ static inline int SYSCALL_ARG0(int syscall_no) {
 #define SOS_SYSCALL_EXIT 12
 #define SOS_SYSCALL_PROCESS_MY_ID 13
 #define SOS_SYSCALL_PROCESS_STATUS 14
+#define SOS_SYSCALL_PROCESS_KILL 15

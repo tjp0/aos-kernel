@@ -11,7 +11,7 @@
 #include <utils/picoro.h>
 
 #define CORO_STACK_PAGES 8
-//#define CORO_DEBUG
+#define CORO_DEBUG
 
 #pragma GCC push_options
 

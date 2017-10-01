@@ -7,10 +7,12 @@
 #include <process.h>
 #include <sel4/sel4.h>
 #include <string.h>
+#include <utils/picoro.h>
 #include <vm.h>
 #include "cpio.h"
 #include "elf.h"
 #include "globals.h"
+#include "sos_coroutine.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
 #define verbose 2
@@ -80,6 +82,12 @@ struct process* process_create(char* app_name) {
 	process_table[process->pid] = process;
 
 	process->name = strdup(app_name);
+
+	/* Create the semaphore for if we are in a syscall*/
+	process->event_finished_syscall = semaphore_create();
+	if (process->event_finished_syscall == NULL) {
+		goto err1_3;
+	}
 
 	/* Create a VSpace */
 	process->vroot_addr = ut_alloc(seL4_PageDirBits);
@@ -242,6 +250,8 @@ err3:
 	cspace_delete_cap(cur_cspace, pd_cap);
 err2:
 err1_5:
+	semaphore_destroy(process->event_finished_syscall);
+err1_3:
 	free(process->name);
 	process_table[process->pid] = NULL;
 err1:
@@ -275,15 +285,32 @@ void process_coredump(struct process* process) {
 void process_kill(struct process* process, uint32_t status) {
 	regions_print(process->vspace.regions);
 	// process_coredump(process);
+	trace(1);
+	if (process->current_coroutine != NULL &&
+		process->current_coroutine != current_coro()) {
+		wait(process->event_finished_syscall);
+	}
+	trace(1);
 
+	semaphore_destroy(process->event_finished_syscall);
+	trace(1);
 	fd_table_close(&process->fds);
+	trace(1);
 	cspace_delete_cap(cur_cspace, process->tcb_cap);
+	trace(1);
 	cspace_delete_cap(cur_cspace, process->ipc_buffer_cap);
+	trace(1);
 	pd_free(process->vspace.pagetable);
+	trace(1);
 	cspace_destroy(process->croot);
+	trace(1);
 	region_list_destroy(process->vspace.regions);
+	trace(1);
 	process_table[process->pid] = NULL;
+	trace(1);
 	free(process->name);
+	trace(1);
 	free(process);
+	trace(1);
 	//	panic("Killing processes not implemented yet");
 }

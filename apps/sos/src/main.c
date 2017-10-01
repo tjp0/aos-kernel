@@ -36,6 +36,7 @@
 #include <frametable.h>
 #include <process.h>
 #include <region_manager.h>
+#include <sys/kassert.h>
 #include <syscall.h>
 #include <syscall/syscall_io.h>
 #include <syscall/syscall_memory.h>
@@ -45,8 +46,9 @@
 #include <utils/endian.h>
 #include <utils/picoro.h>
 #include <utils/stack.h>
+#include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 3
+#define verbose 6
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -166,6 +168,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		case SOS_SYSCALL_PROCESS_STATUS: {
 			err = syscall_process_status(process, arg1, arg2);
 		} break;
+		case SOS_SYSCALL_PROCESS_KILL: {
+			err = syscall_process_kill(process, arg1);
+		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);
@@ -222,20 +227,35 @@ void* handle_event(void* e) {
 			timer_interrupt_epit2();
 		}
 
-	} else if (label == seL4_VMFault) {
-		dprintf(2, "VMFAULT\n");
-		struct process* process = get_process(badge);
-		if (process == NULL) {
-			panic("VM fault from unknown process");
-		}
-		sos_handle_vmfault(process);
-
-	} else if (label == seL4_NoFault) {
-		/* System call */
-		handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-
 	} else {
-		printf("Rootserver got an unknown message\n");
+		struct process* process = get_process(badge);
+		if (process) {
+			kassert(process->current_coroutine == NULL);
+			// mark the current coroutine so we know not to kill it
+			process->current_coroutine = current_coro();
+
+			if (label == seL4_VMFault) {
+				dprintf(2, "VMFAULT\n");
+				sos_handle_vmfault(process);
+
+			} else if (label == seL4_NoFault) {
+				/* System call */
+				handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
+			}
+
+			// handle the cases when process dies
+			// e.g you call the exit syscall and the
+			// process pointer is no longer valid
+			process = get_process(badge);
+			if (process) {
+				// it's now ok to kill it
+				process->current_coroutine = NULL;
+				signal(process->event_finished_syscall);
+			}
+
+		} else {
+			printf("Rootserver got an unknown message\n");
+		}
 	}
 	dprintf(3, "Coro complete\n");
 	return 0;
@@ -251,6 +271,8 @@ void* event_loop(void* void_ep) {
 		label = seL4_MessageInfo_get_label(message);
 		struct event e = {badge, label, message};
 		coro event_handler = coroutine(&handle_event);
+
+		trace(5);
 		resume(event_handler, &e);
 	}
 	return NULL;
@@ -421,8 +443,10 @@ static void* _sos_late_init(void* unusedarg) {
 	 * loop *
 	 * which will handle interrupts as SOS initializes */
 	coro main_func = coroutine(sos_main);
+	trace(5);
 	resume(main_func, NULL);
 	coro coro_event_loop = coroutine(event_loop);
+	trace(5);
 	resume(coro_event_loop, (void*)sos_syscall_cap);
 	panic("We should not be here");
 	return NULL;
