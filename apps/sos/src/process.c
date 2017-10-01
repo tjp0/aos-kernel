@@ -309,7 +309,6 @@ void process_kill(struct process* process, uint32_t status) {
 
 	trace(1);
 
-	semaphore_destroy(process->event_finished_syscall);
 	trace(1);
 	fd_table_close(&process->fds);
 	trace(1);
@@ -328,6 +327,7 @@ void process_kill(struct process* process, uint32_t status) {
 }
 void process_zombie_reap(struct process* process) {
 	kassert(process != NULL);
+	semaphore_destroy(process->event_finished_syscall);
 	process_table[process->pid] = NULL;
 	free(process->name);
 	free(process);
