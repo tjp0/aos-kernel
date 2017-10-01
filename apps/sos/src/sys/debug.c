@@ -9,14 +9,20 @@
  */
 
 #include "debug.h"
+#include <globals.h>
+#include <serial/serial.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
+static char debug_buf[1024];
 void plogf(const char* msg, ...) {
 	va_list alist;
-
 	va_start(alist, msg);
+	//	if (global_debug_serial) {
+	//		vsprintf(debug_buf, msg, alist);
+	//		serial_send(global_debug_serial, debug_buf, strlen(debug_buf));
+	//	}
 	vprintf(msg, alist);
 	va_end(alist);
 }

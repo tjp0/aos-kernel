@@ -34,6 +34,7 @@
 #include <copy.h>
 #include <devices/devices.h>
 #include <frametable.h>
+#include <globals.h>
 #include <process.h>
 #include <region_manager.h>
 #include <sys/kassert.h>
@@ -48,9 +49,12 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 6
+#define verbose 3
 #include <sys/debug.h>
 #include <sys/panic.h>
+
+#define AOS_DEV_06_PORT 1337
+struct serial* global_debug_serial;
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -480,6 +484,8 @@ static void* sos_main(void* na) {
 
 	start_timer(badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_EPIT1),
 				badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_EPIT2));
+
+	global_debug_serial = serial_init(AOS_DEV_06_PORT);
 
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");

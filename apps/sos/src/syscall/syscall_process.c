@@ -43,7 +43,8 @@ uint32_t syscall_process_status(struct process* process, vaddr_t processes,
 	uint32_t pid_count = 0;
 
 	for (pid = 1; pid < MAX_PROCESSES; ++pid) {
-		if (process_table[pid]) {
+		if (process_table[pid] &&
+			process_table[pid]->status != PROCESS_ZOMBIE) {
 			// popualate the things for each entry
 			things[pid_count].pid = process_table[pid]->pid;
 			things[pid_count].stime = process_table[pid]->start_time;

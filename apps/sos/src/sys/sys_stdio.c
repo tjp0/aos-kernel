@@ -12,18 +12,18 @@
 #include <autoconf.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <globals.h>
 #include <limits.h>
+#include <sel4/sel4.h>
+#include <serial/serial.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-#include <sel4/sel4.h>
-
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/uio.h>
+#include <unistd.h>
 
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -77,6 +77,10 @@ long sys_writev(va_list ap) {
 	if (fildes == STDOUT_FD || fildes == STDERR_FD) {
 		for (int i = 0; i < iovcnt; i++) {
 			ret += sel4_write(iov[i].iov_base, iov[i].iov_len);
+			if (global_debug_serial) {
+				serial_send(global_debug_serial, iov[i].iov_base,
+							iov[i].iov_len);
+			}
 		}
 	} else {
 		assert(!"Not implemented");

@@ -9,12 +9,12 @@
  */
 
 #include <assert.h>
-#include <stddef.h>
-#include <string.h>
-
 #include <lwip/netif.h>
 #include <lwip/pbuf.h>
 #include <lwip/udp.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <serial/serial.h>
 
@@ -22,30 +22,29 @@
 #define AOS06_PORT (26706)
 
 /* Limit the MTU to give client a chance to respond */
-#define MAX_PAYLOAD_SIZE  500
+#define MAX_PAYLOAD_SIZE 500
 
-/* Attempt to obtain UDP reliability by providing some delay to flush network queues
- * This should not be a problem when using a high throughput connection
+/* Attempt to obtain UDP reliability by providing some delay to flush network
+ * queues This should not be a problem when using a high throughput connection
  */
 //#define TX_DELAY_US  1000UL
-#define TX_DELAY_US  0UL
+#define TX_DELAY_US 0UL
 
 struct serial {
-    void (*fHandler) (struct serial *serial, char c);
+    void (*fHandler)(struct serial *serial, char c);
     struct udp_pcb *fUpcb;
 };
 
-static void 
-serial_recv_handler(void *vSerial, struct udp_pcb *unused0, 
-                    struct pbuf *p, struct ip_addr *unused1, u16_t unused2)
-{
-    struct serial *serial = (struct serial *) vSerial;
+static void serial_recv_handler(void *vSerial, struct udp_pcb *unused0,
+                                struct pbuf *p, struct ip_addr *unused1,
+                                u16_t unused2) {
+    struct serial *serial = (struct serial *)vSerial;
     if (serial && serial->fHandler) {
         struct pbuf *q;
-        for(q = p; q != NULL; q = q->next){
+        for (q = p; q != NULL; q = q->next) {
             char *data = q->payload;
             int i;
-            for(i = 0; i < q->len; i++){
+            for (i = 0; i < q->len; i++) {
                 serial->fHandler(serial, *data++);
             }
         }
@@ -53,64 +52,64 @@ serial_recv_handler(void *vSerial, struct udp_pcb *unused0,
     pbuf_free(p);
 }
 
-struct serial *
-serial_init(void)
-{
-    static struct serial serial = {.fUpcb = NULL, .fHandler = NULL};
-    if(serial.fUpcb != NULL){
-        return &serial;
+struct serial *serial_init(unsigned short port) {
+    struct serial *serial = malloc(sizeof(struct serial));
+    if (serial == NULL) {
+        return NULL;
     }
-    serial.fUpcb = udp_new();
+    serial->fUpcb = NULL;
+    serial->fHandler = NULL;
 
-    u16_t port = AOS06_PORT;
-    if (udp_bind(serial.fUpcb, &netif_default->ip_addr, port)){
-        udp_remove(serial.fUpcb);
-        serial.fUpcb = NULL;
+    serial->fUpcb = udp_new();
+
+    // u16_t port = AOS06_PORT;
+    if (udp_bind(serial->fUpcb, &netif_default->ip_addr, port)) {
+        udp_remove(serial->fUpcb);
+        serial->fUpcb = NULL;
+        free(serial);
         return NULL;
     }
 
-    if (udp_connect(serial.fUpcb, &netif_default->gw, port)){
-        udp_remove(serial.fUpcb);
-        serial.fUpcb = NULL;
+    if (udp_connect(serial->fUpcb, &netif_default->gw, port)) {
+        udp_remove(serial->fUpcb);
+        serial->fUpcb = NULL;
+        free(serial);
         return NULL;
     }
-    udp_recv(serial.fUpcb, &serial_recv_handler, &serial);
+    udp_recv(serial->fUpcb, &serial_recv_handler, serial);
 
-    return &serial;
+    return serial;
 }
 
-static void
-__delay(int us)
-{
-    while(us--){
+static void __delay(int us) {
+    while (us--) {
         /* Loosely assume 1GHZ clock */
         volatile int i = 1000;
-        while(i--);
+        while (i--)
+            ;
     }
 }
 
-int
-serial_send(struct serial *serial, char *data, int len)
-{
+int serial_send(struct serial *serial, char *data, int len) {
     int to_send = len;
-    while(to_send > 0){
+    while (to_send > 0) {
         int plen;
         struct pbuf *p;
         /* Generate the packet */
-        plen = (to_send > MAX_PAYLOAD_SIZE)? MAX_PAYLOAD_SIZE : to_send;
+        plen = (to_send > MAX_PAYLOAD_SIZE) ? MAX_PAYLOAD_SIZE : to_send;
         p = pbuf_alloc(PBUF_TRANSPORT, plen, PBUF_RAM);
-        if(p == NULL){
+        if (p == NULL) {
             return len - to_send;
         }
 
-        if(pbuf_take(p, data, plen)){
+        if (pbuf_take(p, data, plen)) {
             pbuf_free(p);
             return len - to_send;
         }
 
         __delay(TX_DELAY_US);
 
-        if (udp_send(serial->fUpcb, p)){
+        if (udp_send(serial->fUpcb, p)) {
             pbuf_free(p);
             return len - to_send;
         }
@@ -122,10 +121,8 @@ serial_send(struct serial *serial, char *data, int len)
     return len;
 }
 
-int
-serial_register_handler(struct serial *serial,
-                        void (*handler)(struct serial *serial, char c))
-{
+int serial_register_handler(struct serial *serial,
+                            void (*handler)(struct serial *serial, char c)) {
     serial->fHandler = handler;
     return 0;
 }

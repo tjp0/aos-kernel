@@ -14,7 +14,6 @@
 #include <stdio.h>
 
 void plogf(const char* msg, ...);
-
 #define _dprintf(v, col, args...) \
 	do {                          \
 		if ((v) < verbose) {      \

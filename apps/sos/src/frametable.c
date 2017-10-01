@@ -18,7 +18,7 @@
 #define FRAME_RESERVED 90000
 
 // For demo purposes, this is approx 480k of userland frames
-#define FRAME_TEST_MAX 20
+#define FRAME_TEST_MAX 0
 
 #define DEBUG_VALUE 13210387
 
