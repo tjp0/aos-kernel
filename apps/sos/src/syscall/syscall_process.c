@@ -58,6 +58,9 @@ uint32_t syscall_process_status(struct process* process, vaddr_t processes,
 
 			dprintf(0, "pid command %s \n", process_table[pid]->name);
 			pid_count++;
+			if (pid_count == max) {
+				break;
+			}
 		}
 	}
 
