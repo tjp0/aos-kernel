@@ -8,7 +8,7 @@
 #include <ut_manager/ut.h>
 #include <utils/page.h>
 #include <vmem_layout.h>
-#define verbose 2
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -18,7 +18,7 @@
 #define FRAME_RESERVED 90000
 
 // For demo purposes, this is approx 480k of userland frames
-#define FRAME_TEST_MAX 0
+#define FRAME_TEST_MAX 20
 
 #define DEBUG_VALUE 13210387
 

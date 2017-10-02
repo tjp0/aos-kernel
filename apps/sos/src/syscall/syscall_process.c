@@ -3,7 +3,7 @@
 #include <sos.h>
 #include <sos_coroutine.h>
 #include <vm.h>
-#define verbose 6
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 

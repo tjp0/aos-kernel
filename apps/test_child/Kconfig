@@ -1,0 +1,6 @@
+config APP_TEST_CHILD
+    bool "Test Child"
+    depends on LIB_SEL4 && HAVE_LIBC && LIB_SOS
+    select HAVE_SEL4_APPS
+    help
+        This is a test program that acts as a child process

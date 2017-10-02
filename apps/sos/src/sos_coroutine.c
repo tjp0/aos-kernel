@@ -7,7 +7,7 @@
 #include <sys/kassert.h>
 #include <utils/list.h>
 
-#define verbose 6
+#define verbose 0
 
 #define UNLOCKED 0
 #define LOCKED 1

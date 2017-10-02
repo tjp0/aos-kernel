@@ -49,7 +49,7 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 3
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 

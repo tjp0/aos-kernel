@@ -1,0 +1,6 @@
+config APP_TEST_PARENT
+    bool "Test Parent"
+    depends on LIB_SEL4 && HAVE_LIBC && LIB_SOS
+    select HAVE_SEL4_APPS
+    help
+        This is a test program for creating children processes

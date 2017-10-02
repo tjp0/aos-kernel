@@ -5,7 +5,7 @@
 #include <sos.h>
 #include <utils/picoro.h>
 #include <utils/ringbuffer.h>
-#define verbose 5
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #define SERIAL_BUFFER_SIZE 512
