@@ -1,2 +1,2 @@
-apps - $(CONFIG_APP_TEST_CHILD) += test_child test_child
-	: $(libc) libsel4 libsos
+apps-$(CONFIG_APP_TEST_CHILD) += test_child
+test_child: $(libc) libsel4 libsos
