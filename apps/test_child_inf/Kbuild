@@ -1,0 +1,2 @@
+apps-$(CONFIG_APP_TEST_CHILD_INF) += test_child_inf
+test_child_inf: $(libc) libsel4 libsos
