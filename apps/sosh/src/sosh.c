@@ -167,6 +167,17 @@ static int exec(int argc, char **argv) {
 	return 0;
 }
 
+static int wait(int argc, char *argv[]) {
+	pid_t pid;
+	if (argc != 2) {
+		printf("Usage: wait pid\n");
+		return 1;
+	}
+
+	pid = atoi(argv[1]);
+	return sos_process_wait(pid);
+}
+
 static int dir(int argc, char **argv) {
 	int i = 0, r;
 	char buf[BUF_SIZ];
@@ -331,6 +342,7 @@ struct command commands[] = {{"dir", dir},
 							 {"kill", kill},
 							 {"benchmark", benchmark},
 							 {"id", id},
+							 {"wait", wait},
 							 {"thrash", thrash}};
 
 int main(void) {

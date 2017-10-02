@@ -22,6 +22,8 @@
 
 extern char _cpio_archive[];
 
+struct semaphore* any_pid_exit_signal;
+
 void process_zombie_reap(struct process* process);
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -94,6 +96,12 @@ struct process* process_create(char* app_name) {
 	process->event_finished_syscall = semaphore_create();
 	if (process->event_finished_syscall == NULL) {
 		goto err1_3;
+	}
+
+	/* Create the semaphore for if we are in a syscall*/
+	process->exit_signal = semaphore_create();
+	if (process->exit_signal == NULL) {
+		goto err1_4;
 	}
 
 	/* Create a VSpace */
@@ -260,6 +268,8 @@ err3:
 	cspace_delete_cap(cur_cspace, pd_cap);
 err2:
 err1_5:
+	semaphore_destroy(process->exit_signal);
+err1_4:
 	semaphore_destroy(process->event_finished_syscall);
 err1_3:
 	free(process->name);
@@ -323,11 +333,16 @@ void process_kill(struct process* process, uint32_t status) {
 	region_list_destroy(process->vspace.regions);
 	trace(1);
 	process->status = PROCESS_ZOMBIE;
-	//	panic("Killing processes not implemented yet");
+
+	// Signal that *this* process has ended
+	signal(process->exit_signal, (void*)process->pid);
+	// Signal that *a* process has ended
+	signal(any_pid_exit_signal, (void*)process->pid);
 }
 void process_zombie_reap(struct process* process) {
 	kassert(process != NULL);
 	semaphore_destroy(process->event_finished_syscall);
+	semaphore_destroy(process->exit_signal);
 	process_table[process->pid] = NULL;
 	free(process->name);
 	free(process);

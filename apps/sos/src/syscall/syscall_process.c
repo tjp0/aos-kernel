@@ -1,10 +1,13 @@
 #include <copy.h>
 #include <process.h>
 #include <sos.h>
+#include <sos_coroutine.h>
 #include <vm.h>
 #define verbose 6
 #include <sys/debug.h>
 #include <sys/kassert.h>
+
+// extern struct semaphore* any_pid_exit_signal;
 
 uint32_t syscall_process_create(struct process* process, vaddr_t path) {
 	trace(5);
@@ -80,6 +83,28 @@ uint32_t syscall_process_kill(struct process* process, uint32_t pid) {
 	dprintf(0, "Killing process %d \n", process_to_kill);
 	process_kill(process_to_kill, status);
 	return 0;
+}
+
+static uint32_t wait_pid(uint32_t pid) {
+	struct process* process_to_wait_on = get_process(pid);
+	if (!process_to_wait_on) {
+		return -1;
+	}
+	if (process_to_wait_on->status == PROCESS_ZOMBIE) {
+		return pid;
+	}
+	pid_t ret_pid = (pid_t)wait(process_to_wait_on->exit_signal);
+	// sanity check that we have actually been notified of the correct process
+	assert(ret_pid == pid);
+	return ret_pid;
+}
+static uint32_t wait_any(void) { return (uint32_t)wait(any_pid_exit_signal); }
+
+uint32_t syscall_process_wait(struct process* process, uint32_t pid) {
+	if (pid == -1) {
+		return wait_any();
+	}
+	return wait_pid(pid);
 }
 
 /* TODO

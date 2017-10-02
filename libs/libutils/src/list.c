@@ -107,6 +107,16 @@ int list_foreach(list_t *l, int (*action)(void *)) {
 	}
 	return 0;
 }
+int list_foreach_var(list_t *l, int (*action)(void *, void *), void *var) {
+	assert(l != NULL);
+	for (node_t *n = l->head; n != NULL; n = n->next) {
+		int res = action(n->data, var);
+		if (res != 0) {
+			return res;
+		}
+	}
+	return 0;
+}
 
 static int remove(list_t *l, void *data, int (*cmp)(void *, void *),
 				  bool should_free) {

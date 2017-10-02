@@ -7,6 +7,8 @@
 #include <utils/picoro.h>
 #define MAX_PROCESSES (256)
 
+extern struct semaphore* any_pid_exit_signal;
+
 struct vspace {
 	struct page_directory* pagetable;
 	region_list* regions;
@@ -36,6 +38,7 @@ struct process {
 	enum process_status status;
 	coro current_coroutine;
 	struct semaphore* event_finished_syscall;
+	struct semaphore* exit_signal;
 };
 
 extern struct process* process_table[MAX_PROCESSES];

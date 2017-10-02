@@ -75,6 +75,8 @@ struct serial* global_debug_serial;
  * of an archive of attached applications.                */
 extern char _cpio_archive[];
 
+// extern struct semaphore* any_pid_exit_signal;
+
 const seL4_BootInfo* _boot_info;
 
 struct serial* global_serial;
@@ -175,6 +177,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		case SOS_SYSCALL_PROCESS_KILL: {
 			err = syscall_process_kill(process, arg1);
 		} break;
+		case SOS_SYSCALL_PROCESS_WAIT: {
+			err = syscall_process_wait(process, arg1);
+		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);
@@ -254,7 +259,7 @@ void* handle_event(void* e) {
 			if (process) {
 				// it's now ok to kill it
 				process->current_coroutine = NULL;
-				signal(process->event_finished_syscall);
+				signal(process->event_finished_syscall, NULL);
 			}
 
 		} else {
@@ -491,6 +496,11 @@ static void* sos_main(void* na) {
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
 	conditional_panic(swap_init() < 0, "Swap init failed");
 
+	any_pid_exit_signal = semaphore_create();
+	if (any_pid_exit_signal == NULL) {
+		dprintf(0, "\nFAILED TO MAKE 'any_pid_exit_signal' semaphore \n");
+		return NULL;
+	}
 	/* Start the user application */
 	start_first_process("First Process", sos_syscall_cap);
 	dprintf(0, "\nSOS fully initialized\n");

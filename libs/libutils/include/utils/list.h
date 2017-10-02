@@ -16,7 +16,9 @@
 #include <stdbool.h>
 
 /* Type of a linked-list. */
-typedef struct { struct list_node *head; } list_t;
+typedef struct {
+	struct list_node *head;
+} list_t;
 
 /* Create a new linked-list. Returns 0 on success. */
 int list_init(list_t *l);
@@ -51,6 +53,9 @@ int list_index(list_t *l, void *data, int (*cmp)(void *, void *));
  * value is returned. If traversal completes, this function returns 0.
  */
 int list_foreach(list_t *l, int (*action)(void *));
+
+/* Same as for each, but pass var as an extra argument to action */
+int list_foreach_var(list_t *l, int (*action)(void *, void *), void *var);
 
 /* Remove the given element from the list. Returns non-zero if the element is
  * not found.

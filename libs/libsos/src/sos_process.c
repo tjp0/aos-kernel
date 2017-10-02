@@ -16,8 +16,7 @@ int sos_process_delete(pid_t pid) {
 }
 
 pid_t sos_process_wait(pid_t pid) {
-	assert(!"sos_process_wait not implemented");
-	return -1;
+	return (pid_t)SYSCALL_ARG1(SOS_SYSCALL_PROCESS_WAIT, pid);
 }
 
 pid_t sos_my_id(void) { return SYSCALL_ARG0(SOS_SYSCALL_PROCESS_MY_ID); }

@@ -19,5 +19,5 @@ int unlock(struct lock *lock);
 
 struct semaphore *semaphore_create(void);
 int semaphore_destroy(struct semaphore *s);
-int signal(struct semaphore *s);
-int wait(struct semaphore *s);
+int signal(struct semaphore *s, void *val);
+void *wait(struct semaphore *s);

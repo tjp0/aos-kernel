@@ -9,3 +9,4 @@ uint32_t syscall_process_my_id(struct process* process);
 uint32_t syscall_process_status(struct process* process, vaddr_t processes,
 								unsigned max);
 uint32_t syscall_process_kill(struct process* process, uint32_t pid);
+uint32_t syscall_process_wait(struct process* process, uint32_t pid);

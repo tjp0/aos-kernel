@@ -13,7 +13,7 @@
 #define LOCKED 1
 
 /* passed to the list library in foreach() */
-static int resume_coro(void *coro);
+static int resume_coro(void *coro, void *var);
 
 /* returns true if (a == b) */
 static int cmp_equality(void *a, void *b);
@@ -73,17 +73,17 @@ int semaphore_destroy(struct semaphore *s) {
 	return 0;
 }
 
-int signal(struct semaphore *s) {
+int signal(struct semaphore *s, void *val) {
 	/* resume coros */
-	list_foreach(s->coros_waiting, resume_coro);
-
+	/* return a value to each of them from the signaller*/
+	list_foreach_var(s->coros_waiting, resume_coro, val);
 	return 0;
 }
 
-int wait(struct semaphore *s) {
+/* Retuns the value sent by the signaller*/
+void *wait(struct semaphore *s) {
 	list_append(s->coros_waiting, current_coro());
-	yield(0);
-	return 0;
+	return yield(0);
 }
 
 /*
@@ -158,10 +158,10 @@ int unlock(struct lock *l) {
  */
 
 /* function passed as an argument to list_foreach() during unlock() */
-static int resume_coro(void *coro) {
+static int resume_coro(void *coro, void *var) {
 	trace(5);
 	dprintf(0, "coro %p\n", coro);
-	resume(coro, 0);
+	resume(coro, var);
 	trace(5);
 	return 0;
 }
