@@ -2,7 +2,7 @@
 #include <process.h>
 #include <sos_coroutine.h>
 
-#define verbose 5
+#define verbose 0
 #include <sys/debug.h>
 
 int syscall_usleep(struct process* process, int milliseconds) {

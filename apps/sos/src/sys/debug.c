@@ -14,18 +14,14 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-
-static char debug_buf[1024];
+#include <utils/picoro.h>
 void plogf(const char* msg, ...) {
 	va_list alist;
 	va_start(alist, msg);
-	//	if (global_debug_serial) {
-	//		vsprintf(debug_buf, msg, alist);
-	//		serial_send(global_debug_serial, debug_buf, strlen(debug_buf));
-	//	}
 	vprintf(msg, alist);
 	va_end(alist);
 }
 void _tracer(const char* file, const int line, const char* function) {
-	printf("trace: <%s>:%u | %s\n", function, line, file);
+	printf("trace: %d:<%s>:%u | %s\n", current_coro_num(), function, line,
+		   file);
 }

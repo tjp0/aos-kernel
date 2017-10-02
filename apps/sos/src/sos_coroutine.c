@@ -77,6 +77,7 @@ int signal(struct semaphore *s, void *val) {
 	/* resume coros */
 	/* return a value to each of them from the signaller*/
 	list_foreach_var(s->coros_waiting, resume_coro, val);
+	list_remove_all(s->coros_waiting);
 	return 0;
 }
 

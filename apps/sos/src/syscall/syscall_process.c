@@ -26,6 +26,7 @@ uint32_t syscall_process_create(struct process* process, vaddr_t path) {
 }
 
 uint32_t syscall_process_exit(struct process* process, uint32_t status) {
+	trace(5);
 	process_kill(process, status);
 	return 0;
 }
@@ -37,6 +38,9 @@ uint32_t syscall_process_status(struct process* process, vaddr_t processes,
 								unsigned max) {
 	unsigned int buf_size = max * sizeof(sos_process_t);
 
+	if (max == 0) {
+		return -1;
+	}
 	sos_process_t* things = malloc(buf_size);
 	if (!things) {
 		return -1;
@@ -50,7 +54,7 @@ uint32_t syscall_process_status(struct process* process, vaddr_t processes,
 			process_table[pid]->status != PROCESS_ZOMBIE) {
 			// popualate the things for each entry
 			things[pid_count].pid = process_table[pid]->pid;
-			things[pid_count].stime = process_table[pid]->start_time;
+			things[pid_count].stime = process_table[pid]->start_time / 1000;
 			things[pid_count].size =
 				process_table[pid]->vspace.pagetable->num_ptes;
 			strncpy(things[pid_count].command, process_table[pid]->name,
@@ -96,9 +100,9 @@ static uint32_t wait_pid(uint32_t pid) {
 	if (process_to_wait_on->status == PROCESS_ZOMBIE) {
 		return pid;
 	}
-	pid_t ret_pid = (pid_t)wait(process_to_wait_on->exit_signal);
+	pid_t ret_pid = (pid_t)wait(process_to_wait_on->event_exited);
 	// sanity check that we have actually been notified of the correct process
-	assert(ret_pid == pid);
+	kassert(ret_pid == pid);
 	return ret_pid;
 }
 static uint32_t wait_any(void) { return (uint32_t)wait(any_pid_exit_signal); }

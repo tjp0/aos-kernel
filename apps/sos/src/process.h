@@ -38,7 +38,7 @@ struct process {
 	enum process_status status;
 	coro current_coroutine;
 	struct semaphore* event_finished_syscall;
-	struct semaphore* exit_signal;
+	struct semaphore* event_exited;
 };
 
 extern struct process* process_table[MAX_PROCESSES];

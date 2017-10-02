@@ -15,6 +15,7 @@
 #include <sys/kassert.h>
 #include <sys/panic.h>
 
+static struct lock* swaplock = NULL;
 static struct page_table_entry* clock_pointer;
 
 static void* frame_alloc_swap();
@@ -27,6 +28,43 @@ static inline uint32_t vaddr_to_ptsoffset(vaddr_t address) {
 
 static inline uint32_t vaddr_to_pteoffset(vaddr_t address) {
 	return ((address >> 12) & 0x000000FF);
+}
+
+static void clock_add(struct page_table_entry* pte) {
+	kassert(pte != NULL);
+	if (!(pte->flags & PAGE_PINNED)) {
+		if (clock_pointer == NULL) {
+			clock_pointer = pte;
+			pte->next = pte;
+			pte->prev = pte;
+			return;
+		}
+		pte->next = clock_pointer;
+		pte->prev = clock_pointer->prev;
+		clock_pointer->prev = pte;
+		pte->prev->next = pte;
+	}
+}
+
+static void clock_remove(struct page_table_entry* pte) {
+	kassert(pte != NULL);
+	if (pte->next == NULL) {
+		kassert(pte->flags & PAGE_PINNED);
+		return;
+	}
+#ifdef VM_HEAVY_VETTING
+	kassert(pte->debug_check == VM_HEAVY_VETTING);
+#endif
+	kassert(pte->prev != NULL);
+	kassert(pte->next != NULL);
+	pte->prev->next = pte->next;
+	pte->next->prev = pte->prev;
+	clock_pointer = pte->next;
+	pte->next = NULL;
+	pte->prev = NULL;
+	if (clock_pointer == pte) {
+		clock_pointer = NULL;
+	}
 }
 
 static struct page_table* create_pt(struct page_directory* pd,
@@ -90,8 +128,12 @@ static void pt_free(struct page_table* pt) {
 }
 
 static void pte_free(struct page_table_entry* pte) {
+	lock(swaplock);
+	lock(pte->lock);
+	dprintf(3, "Destroying page %p at %p:%08u\n", pte, pte->pd, pte->address);
 	pte->pd->num_ptes--;
 	if (vm_pageisloaded(pte)) {
+		clock_remove(pte);
 		frame_free(frame_cell_to_vaddr(pte->frame));
 		cspace_delete_cap(cur_cspace, pte->cap);
 	} else {
@@ -99,8 +141,8 @@ static void pte_free(struct page_table_entry* pte) {
 	}
 	lock_destroy(pte->lock);
 	free(pte);
+	unlock(swaplock);
 }
-
 static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
 	struct page_table_entry* pte = malloc(sizeof(struct page_table_entry));
 	memset(pte, 0, sizeof(struct page_table_entry));
@@ -117,25 +159,15 @@ static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
 	void* new_frame = frame_alloc_swap();
 	if (new_frame == NULL) {
 		free(pte);
+		lock_destroy(pte->lock);
 		return NULL;
 	}
 	struct frame* frame = get_frame(new_frame);
 	pte->frame = frame;
-
-	if (!(flags & PAGE_PINNED)) {
-		if (clock_pointer == NULL) {
-			clock_pointer = pte;
-			pte->next = pte;
-			pte->prev = pte;
-			return pte;
-		}
-
-		pte->next = clock_pointer;
-		pte->prev = clock_pointer->prev;
-		clock_pointer->prev = pte;
-		pte->prev->next = pte;
-	}
-
+	clock_add(pte);
+#ifdef VM_HEAVY_VETTING
+	pte->debug_check = VM_HEAVY_VETTING;
+#endif
 	return pte;
 }
 
@@ -312,6 +344,7 @@ bool vm_pageismarked(struct page_table_entry* pte) {
 }
 int vm_swapout(struct page_table_entry* pte) {
 	lock(pte->lock);
+	clock_remove(pte);
 	trace(5);
 	dprintf(1, "** pte %p\n", (void*)pte);
 	kassert(pte != NULL);
@@ -321,15 +354,6 @@ int vm_swapout(struct page_table_entry* pte) {
 	dprintf(2, "Swapping out page %08x in addrspace %p\n", pte->address,
 			pte->pd);
 
-	pte->prev->next = pte->next;
-	pte->next->prev = pte->prev;
-	clock_pointer = pte->next;
-	pte->next = NULL;
-	pte->prev = NULL;
-	if (clock_pointer == pte) {
-		clock_pointer = NULL;
-	}
-
 	seL4_ARM_Page_Unmap(pte->cap);
 	cspace_delete_cap(cur_cspace, pte->cap);
 	pte->cap = 0;
@@ -338,7 +362,7 @@ int vm_swapout(struct page_table_entry* pte) {
 	trace(5);
 	dprintf(1, "** pte %p\n", (void*)pte);
 	if (pte->disk_frame_offset < 0) {
-		dprintf(0, "Bad disk offset to swapout\n");
+		panic("Bad disk offset to swapout\n");
 		unlock(pte->lock);
 		return VM_FAIL;
 	}
@@ -354,6 +378,7 @@ int vm_swapout(struct page_table_entry* pte) {
 	unlock(pte->lock);
 	return 0;
 }
+/* Prereq: The lock to pte is already held */
 int vm_swapin(struct page_table_entry* pte) {
 	trace(4);
 	kassert(pte != NULL);
@@ -388,18 +413,7 @@ int vm_swapin(struct page_table_entry* pte) {
 	seL4_ARM_Page_CleanInvalidate_Data(pte->cap, 0, PAGE_SIZE_4K);
 
 	trace(4);
-	if (clock_pointer == NULL) {
-		trace(4);
-		pte->next = pte;
-		pte->prev = pte;
-		clock_pointer = pte;
-	} else {
-		trace(4);
-		pte->next = clock_pointer;
-		pte->prev = clock_pointer->prev;
-		pte->next->prev = pte;
-		pte->prev->next = pte;
-	}
+	clock_add(pte);
 	trace(4);
 	return VM_OKAY;
 
@@ -539,12 +553,14 @@ static int vm_updatepage(struct page_table_entry* pte) {
 	trace(4);
 	return VM_OKAY;
 }
-static struct lock* swaplock = NULL;
+
+int vm_init(void) {
+	swaplock = lock_create();
+	conditional_panic(swaplock == NULL, "Failed to create VM swaplock");
+	return 0;
+}
 
 int vm_swappage(void) {
-	if (swaplock == NULL) {
-		swaplock = lock_create();
-	}
 	lock(swaplock);
 	trace(4);
 	bool found = false;

@@ -8,6 +8,8 @@
  *	Virtual Memory System
  */
 
+//#define VM_HEAVY_VETTING 108392
+
 #define PAGE_SIZE PAGE_SIZE_4K
 #define PTES_PER_TABLE 256
 #define PTS_PER_DIRECTORY 4096
@@ -37,6 +39,9 @@ struct page_table_entry {
 	struct page_table_entry* next;
 	struct page_table_entry* prev;
 	struct lock* lock;
+#ifdef VM_HEAVY_VETTING
+	uint32_t debug_check;
+#endif
 };
 
 struct page_table {
@@ -66,6 +71,7 @@ int vm_swapout(struct page_table_entry* pte);
 bool vm_pageisloaded(struct page_table_entry* pte);
 int vm_swapin(struct page_table_entry* pte);
 int vm_swappage(void);
+int vm_init(void);
 
 int32_t swapout_frame(const void* src);
 int32_t swap_init(void);

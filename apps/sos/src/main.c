@@ -49,12 +49,13 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 0
+#define verbose 3
 #include <sys/debug.h>
 #include <sys/panic.h>
 
-#define AOS_DEV_06_PORT 1337
+#ifdef CONFIG_SOS_DEBUG_NETWORK
 struct serial* global_debug_serial;
+#endif
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -244,7 +245,7 @@ void* handle_event(void* e) {
 			process->current_coroutine = current_coro();
 
 			if (label == seL4_VMFault) {
-				dprintf(2, "VMFAULT\n");
+				dprintf(3, "VMFAULT\n");
 				sos_handle_vmfault(process);
 
 			} else if (label == seL4_NoFault) {
@@ -490,10 +491,13 @@ static void* sos_main(void* na) {
 	start_timer(badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_EPIT1),
 				badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_EPIT2));
 
-	global_debug_serial = serial_init(AOS_DEV_06_PORT);
+#ifdef CONFIG_SOS_DEBUG_NETWORK
+	global_debug_serial = serial_init(CONFIG_SOS_DEBUG_NETWORK_PORT);
+#endif
 
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
+	conditional_panic(vm_init() < 0, "VM init failed");
 	conditional_panic(swap_init() < 0, "Swap init failed");
 
 	any_pid_exit_signal = semaphore_create();

@@ -54,7 +54,7 @@ static void push(coro *list, coro c) {
 }
 
 coro current_coro(void) { return running; }
-
+int current_coro_num(void) { return running->counter; }
 /*
  * Remove a coroutine from a list and return it.
  */
@@ -73,20 +73,33 @@ static coro pop(coro *list) {
 static void *pass(coro me, void *arg) {
 	static void *saved;
 	saved = arg;
+#ifdef CORO_DEBUG
+	printf("******* JUMPING FROM %d", me->counter);
+#endif
 	if (!setjmp(me->state)) longjmp(running->state, 1);
 #ifdef CORO_DEBUG
-	printf("******* JUMPING TO STACK: %d\n", me->counter);
+	printf(" TO STACK %d\n", me->counter);
 #endif
 	return (saved);
 }
 
 void *resume(coro c, void *arg) {
+	if (!resumable(c)) {
+		printf("Stack %d is busted\n", c->counter);
+		assert(resumable(c));
+	}
 	assert(resumable(c));
 	push(&running, c);
 	return (pass(c->next, arg));
 }
 
-void *yield(void *arg) { return (pass(pop(&running), arg)); }
+void *yield(void *arg) {
+	void *ret = pass(pop(&running), arg);
+#ifdef CORO_DEBUG
+	printf("Resuming yield at: %p\n", __builtin_return_address(0));
+#endif
+	return ret;
+}
 
 /* Declare for mutual recursion. */
 void coroutine_start(void), coroutine_main(void *);
@@ -138,16 +151,12 @@ coro coroutine(void *fun(void *arg)) {
  * The conversion between the function pointer and a void pointer is not
  * allowed by ANSI C but we do it anyway.
  */
-#ifdef CORO_DEBUG
 static int counter = 0;
-#endif
 void coroutine_main(void *ret) {
 	void *(*fun)(void *arg);
 	struct coro me;
-#ifdef CORO_DEBUG
 	me.counter = counter;
 	counter++;
-#endif
 	push(&idle, &me);
 	fun = pass(&me, ret);
 	if (!setjmp(running->state)) coroutine_start();

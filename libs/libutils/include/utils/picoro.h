@@ -20,6 +20,9 @@ typedef struct coro *coro;
  */
 coro coroutine(void *fun(void *arg));
 
+/* Return the number of the stack currently in use */
+int current_coro_num(void);
+
 /* Return the currently running coroutine */
 coro current_coro(void);
 

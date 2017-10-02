@@ -15,7 +15,7 @@
 #include "sos_coroutine.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
-#define verbose 2
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -64,7 +64,7 @@ struct process* process_create(char* app_name) {
 	// seL4_Word stack_addr;
 	// seL4_CPtr stack_cap;
 	seL4_CPtr user_ep_cap;
-
+	trace(5);
 	/* These required for setting up the TCB */
 	seL4_UserContext context;
 
@@ -76,20 +76,21 @@ struct process* process_create(char* app_name) {
 	if (process == NULL) {
 		goto err0;
 	}
-
+	trace(5);
 	memset(process, 0, sizeof(struct process));
 
 	process->pid = get_new_pid();
 	if (process->pid == 0) {
 		goto err1;
 	}
-
+	trace(5);
 	struct process* existing_process;
 	if ((existing_process = process_table[process->pid]) != NULL) {
+		trace(5);
 		kassert(existing_process->status == PROCESS_ZOMBIE);
 		process_zombie_reap(existing_process);
 	}
-
+	trace(5);
 	process->name = strdup(app_name);
 
 	/* Create the semaphore for if we are in a syscall*/
@@ -97,10 +98,10 @@ struct process* process_create(char* app_name) {
 	if (process->event_finished_syscall == NULL) {
 		goto err1_3;
 	}
-
+	trace(5);
 	/* Create the semaphore for if we are in a syscall*/
-	process->exit_signal = semaphore_create();
-	if (process->exit_signal == NULL) {
+	process->event_exited = semaphore_create();
+	if (process->event_exited == NULL) {
 		goto err1_4;
 	}
 
@@ -109,7 +110,7 @@ struct process* process_create(char* app_name) {
 	if (process->vroot_addr == 0) {
 		goto err1_5;
 	}
-
+	trace(5);
 	seL4_CPtr pd_cap;
 
 	err =
@@ -124,7 +125,7 @@ struct process* process_create(char* app_name) {
 	if (process->vspace.pagetable == NULL) {
 		goto err3;
 	}
-
+	trace(5);
 	err = init_region_list(&process->vspace.regions);
 	if (err != REGION_GOOD) {
 		goto err4;
@@ -136,7 +137,7 @@ struct process* process_create(char* app_name) {
 	if (process->croot == NULL) {
 		goto err5;
 	}
-
+	trace(5);
 	/* Create an IPC buffer */
 	process->ipc_buffer_addr = ut_alloc(seL4_PageBits);
 	if (process->ipc_buffer_addr == 0) {
@@ -150,6 +151,7 @@ struct process* process_create(char* app_name) {
 		ut_free(process->ipc_buffer_addr, seL4_PageBits);
 		goto err7;
 	}
+	trace(5);
 
 	/* Copy the fault endpoint to the user app to enable IPC */
 	user_ep_cap =
@@ -172,6 +174,7 @@ struct process* process_create(char* app_name) {
 		ut_free(process->tcb_addr, seL4_TCBBits);
 		goto err9;
 	}
+	trace(5);
 
 	dprintf(0, "*** TCB ALLOCATED ***\n");
 /* Provide a logical name for the thread -- Helpful for debugging */
@@ -183,9 +186,10 @@ struct process* process_create(char* app_name) {
 	dprintf(1, "\nStarting \"%s\"...\n", app_name);
 	elf_base = cpio_get_file(_cpio_archive, app_name, &elf_size);
 	if (elf_base == NULL) {
+		trace(5);
 		goto err10;
 	}
-
+	trace(5);
 	/* load the elf image */
 
 	dprintf(0, "*** Loading ELF ***\n");
@@ -203,7 +207,7 @@ struct process* process_create(char* app_name) {
 	if (ipc_region == NULL) {
 		goto err12;
 	}
-
+	trace(5);
 	dprintf(0, "Mapping IPC buffer at vaddr 0x%x\n", ipc_region->vaddr);
 	struct page_table_entry* ipc_pte =
 		sos_map_page(process->vspace.pagetable, ipc_region->vaddr,
@@ -220,7 +224,7 @@ struct process* process_create(char* app_name) {
 	if (err) {
 		goto err14;
 	}
-
+	trace(5);
 	region_node* stack_region = process->vspace.regions->stack;
 
 	if (stack_region == NULL) {
@@ -242,7 +246,7 @@ struct process* process_create(char* app_name) {
 	dprintf(0, "*** PROCESS STARTING (PID: %u) ***\n", process->pid);
 	process->start_time = time_stamp();
 	seL4_TCB_WriteRegisters(process->tcb_cap, 1, 0, 2, &context);
-
+	trace(5);
 	return process;
 
 /* Woo, error handling. Do everything above, but freeing in reverse */
@@ -252,31 +256,42 @@ err13:
 err12:
 err11:
 err10:
+	trace(5);
 	cspace_delete_cap(cur_cspace, process->tcb_cap);
 err9:
 err8:
+	trace(5);
 	cspace_delete_cap(cur_cspace, process->ipc_buffer_cap);
-	cspace_delete_cap(cur_cspace, user_ep_cap);
+	cspace_delete_cap(process->croot, user_ep_cap);
 err7:
 err6:
+	trace(5);
 	cspace_destroy(process->croot);
 err5:
+	trace(5);
 	region_list_destroy(process->vspace.regions);
 err4:
+	trace(5);
 	pd_free(process->vspace.pagetable);
 err3:
+	trace(5);
 	cspace_delete_cap(cur_cspace, pd_cap);
 err2:
 err1_5:
-	semaphore_destroy(process->exit_signal);
+	trace(5);
+	semaphore_destroy(process->event_exited);
 err1_4:
+	trace(5);
 	semaphore_destroy(process->event_finished_syscall);
 err1_3:
+	trace(5);
 	free(process->name);
 	process_table[process->pid] = NULL;
 err1:
+	trace(5);
 	free(process);
 err0:
+	trace(5);
 	return NULL;
 }
 
@@ -301,7 +316,6 @@ void process_coredump(struct process* process) {
 	}
 	printf("Process dumped\n");
 }
-/* Currently only works if a process kills itself */
 void process_kill(struct process* process, uint32_t status) {
 	kassert(process != NULL);
 	trace(1);
@@ -313,16 +327,15 @@ void process_kill(struct process* process, uint32_t status) {
 		process->current_coroutine != current_coro()) {
 		wait(process->event_finished_syscall);
 	}
+	/* While we waited, something else might have killed us */
 	if (process->status == PROCESS_ZOMBIE) {
 		return;
 	}
 
 	trace(1);
-
+	cspace_delete_cap(cur_cspace, process->tcb_cap);
 	trace(1);
 	fd_table_close(&process->fds);
-	trace(1);
-	cspace_delete_cap(cur_cspace, process->tcb_cap);
 	trace(1);
 	cspace_delete_cap(cur_cspace, process->ipc_buffer_cap);
 	trace(1);
@@ -334,15 +347,24 @@ void process_kill(struct process* process, uint32_t status) {
 	trace(1);
 	process->status = PROCESS_ZOMBIE;
 
+	process->tcb_cap = 0;
+	process->ipc_buffer_cap = 0;
+	process->vspace.pagetable = NULL;
+	process->croot = 0;
+	process->vspace.regions = NULL;
+	trace(1);
 	// Signal that *this* process has ended
-	signal(process->exit_signal, (void*)process->pid);
+	signal(process->event_exited, (void*)process->pid);
+	trace(1);
 	// Signal that *a* process has ended
 	signal(any_pid_exit_signal, (void*)process->pid);
+	trace(1);
 }
 void process_zombie_reap(struct process* process) {
 	kassert(process != NULL);
+	kassert(process->status == PROCESS_ZOMBIE);
 	semaphore_destroy(process->event_finished_syscall);
-	semaphore_destroy(process->exit_signal);
+	semaphore_destroy(process->event_exited);
 	process_table[process->pid] = NULL;
 	free(process->name);
 	free(process);
