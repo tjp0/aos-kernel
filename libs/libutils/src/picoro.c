@@ -11,6 +11,7 @@
 #include <utils/picoro.h>
 
 #define CORO_STACK_PAGES 8
+// #define CORO_DEBUG
 
 #pragma GCC push_options
 
@@ -53,7 +54,7 @@ static void push(coro *list, coro c) {
 }
 
 coro current_coro(void) { return running; }
-
+int current_coro_num(void) { return running->counter; }
 /*
  * Remove a coroutine from a list and return it.
  */
@@ -72,18 +73,33 @@ static coro pop(coro *list) {
 static void *pass(coro me, void *arg) {
 	static void *saved;
 	saved = arg;
+#ifdef CORO_DEBUG
+	printf("******* JUMPING FROM %d", me->counter);
+#endif
 	if (!setjmp(me->state)) longjmp(running->state, 1);
-	printf("******* JUMPING TO STACK: %d\n", me->counter);
+#ifdef CORO_DEBUG
+	printf(" TO STACK %d\n", me->counter);
+#endif
 	return (saved);
 }
 
 void *resume(coro c, void *arg) {
+	if (!resumable(c)) {
+		printf("Stack %d is busted\n", c->counter);
+		assert(resumable(c));
+	}
 	assert(resumable(c));
 	push(&running, c);
 	return (pass(c->next, arg));
 }
 
-void *yield(void *arg) { return (pass(pop(&running), arg)); }
+void *yield(void *arg) {
+	void *ret = pass(pop(&running), arg);
+#ifdef CORO_DEBUG
+	printf("Resuming yield at: %p\n", __builtin_return_address(0));
+#endif
+	return ret;
+}
 
 /* Declare for mutual recursion. */
 void coroutine_start(void), coroutine_main(void *);

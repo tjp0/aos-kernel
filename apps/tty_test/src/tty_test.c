@@ -50,7 +50,7 @@ int main(void) {
 
 	printf("Running buf test\n");
 	// test_buffers();
-
+	int i = 0;
 	do {
 		printf("task:\tHello world, I'm\ttty_test!\n");
 		// printf("World hole");
@@ -59,7 +59,7 @@ int main(void) {
 		printf("Recieved timestamp: %lld (%lld seconds since boot)\n",
 			   microseconds, seconds);
 		sos_sys_usleep(1000);  // Implement this as a syscall
-	} while (1);
+	} while (i++ < 5);
 
 	return 0;
 }

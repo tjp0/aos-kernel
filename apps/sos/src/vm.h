@@ -6,7 +6,9 @@
 
 /*
  *	Virtual Memory System
-*/
+ */
+
+//#define VM_HEAVY_VETTING 108392
 
 #define PAGE_SIZE PAGE_SIZE_4K
 #define PTES_PER_TABLE 256
@@ -36,6 +38,10 @@ struct page_table_entry {
 	struct page_directory* pd;
 	struct page_table_entry* next;
 	struct page_table_entry* prev;
+	struct lock* lock;
+#ifdef VM_HEAVY_VETTING
+	uint32_t debug_check;
+#endif
 };
 
 struct page_table {
@@ -46,9 +52,11 @@ struct page_table {
 struct page_directory {
 	seL4_ARM_PageDirectory seL4_pd;
 	struct page_table* pts[PTS_PER_DIRECTORY];
+	uint32_t num_ptes;
 };
 
 struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd);
+void pd_free(struct page_directory* pd);
 
 int vm_missingpage(struct vspace* vspace, vaddr_t address);
 
@@ -63,7 +71,9 @@ int vm_swapout(struct page_table_entry* pte);
 bool vm_pageisloaded(struct page_table_entry* pte);
 int vm_swapin(struct page_table_entry* pte);
 int vm_swappage(void);
+int vm_init(void);
 
 int32_t swapout_frame(const void* src);
 int32_t swap_init(void);
 int32_t swapin_frame(int32_t disk_page_offset, void* dst);
+void swapfree_frame(int32_t disk_page_offset);

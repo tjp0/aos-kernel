@@ -1,13 +1,24 @@
 #pragma once
+#include <clock/clock.h>
 #include <cspace/cspace.h>
 #include <filetable.h>
 #include <region_manager.h>
 #include <sel4/sel4.h>
+#include <utils/picoro.h>
+#define MAX_PROCESSES (256)
+
+extern struct semaphore* any_pid_exit_signal;
+
 struct vspace {
 	struct page_directory* pagetable;
 	region_list* regions;
 
 	vaddr_t sbrk;
+};
+
+enum process_status {
+	PROCESS_ALIVE = 0,
+	PROCESS_ZOMBIE,
 };
 
 struct process {
@@ -20,8 +31,18 @@ struct process {
 	struct vspace vspace;
 
 	struct fd_table fds;
+	uint32_t pid;
+	char* name;
+	timestamp_t start_time;
+
+	enum process_status status;
+	coro current_coroutine;
+	struct semaphore* event_finished_syscall;
+	struct semaphore* event_exited;
 };
 
-struct process* process_create(char* app_name, seL4_CPtr fault_ep);
+extern struct process* process_table[MAX_PROCESSES];
 
-void process_kill(struct process* process);
+struct process* get_process(int32_t pid);
+struct process* process_create(char* app_name);
+void process_kill(struct process* process, uint32_t status);

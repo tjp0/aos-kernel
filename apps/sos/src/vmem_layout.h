@@ -38,7 +38,7 @@ extern seL4_Word DMA_SIZE_BITS;  // (22)
 extern seL4_Word DMA_VEND;
 
 extern seL4_Word KERNEL_STACK_VSTART;
-#define KERNEL_STACK_BITS 22
+#define KERNEL_STACK_BITS 26
 extern seL4_Word KERNEL_STACK_VEND;
 // /* From this address onwards is where any devices will get mapped in
 //  * by the map_device function. You should not use any addresses beyond

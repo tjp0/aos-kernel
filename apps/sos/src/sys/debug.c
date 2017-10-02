@@ -9,17 +9,19 @@
  */
 
 #include "debug.h"
+#include <globals.h>
+#include <serial/serial.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <utils/picoro.h>
 void plogf(const char* msg, ...) {
 	va_list alist;
-
 	va_start(alist, msg);
 	vprintf(msg, alist);
 	va_end(alist);
 }
 void _tracer(const char* file, const int line, const char* function) {
-	printf("trace: <%s>:%u | %s\n", function, line, file);
+	printf("trace: %d:<%s>:%u | %s\n", current_coro_num(), function, line,
+		   file);
 }

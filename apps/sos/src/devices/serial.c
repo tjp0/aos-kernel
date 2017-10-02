@@ -10,6 +10,8 @@
 #include <sys/kassert.h>
 #define SERIAL_BUFFER_SIZE 512
 
+#define AOS06_PORT (26706)
+
 ringBuffer_typedef(char, charBuffer);
 
 static charBuffer serial_buffer;
@@ -35,7 +37,7 @@ static void serial_handler(struct serial* serial, char c) {
 }
 
 int serial_dev_init(void) {
-	global_serial = serial_init();
+	global_serial = serial_init(AOS06_PORT);
 	if (global_serial == NULL) {
 		return -1;
 	}

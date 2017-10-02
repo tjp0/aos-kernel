@@ -34,20 +34,28 @@
 #include <copy.h>
 #include <devices/devices.h>
 #include <frametable.h>
+#include <globals.h>
 #include <process.h>
 #include <region_manager.h>
+#include <sys/kassert.h>
 #include <syscall.h>
 #include <syscall/syscall_io.h>
 #include <syscall/syscall_memory.h>
+#include <syscall/syscall_process.h>
 #include <syscall/syscall_time.h>
 #include <utils/arith.h>
 #include <utils/endian.h>
 #include <utils/picoro.h>
 #include <utils/stack.h>
+#include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 0
+#define verbose 3
 #include <sys/debug.h>
 #include <sys/panic.h>
+
+#ifdef CONFIG_SOS_DEBUG_NETWORK
+struct serial* global_debug_serial;
+#endif
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -57,7 +65,7 @@
  * be the bitwise 'OR' of the async endpoint badge and the badges
  * of all pending notifications. */
 #define IRQ_EP_BADGE (1 << (seL4_BadgeBits - 1))
-/* All badged IRQs set high bet, then we use uniq bits to
+/* All badged IRQs set high bit, then we use uniq bits to
  * distinguish interrupt sources */
 #define IRQ_BADGE_NETWORK (1 << 0)
 #define IRQ_BADGE_EPIT1 (1 << 1)
@@ -68,20 +76,14 @@
  * of an archive of attached applications.                */
 extern char _cpio_archive[];
 
-const seL4_BootInfo* _boot_info;
+// extern struct semaphore* any_pid_exit_signal;
 
-struct process* tty_test_process;
-/*
- * A dummy starting syscall
- */
+const seL4_BootInfo* _boot_info;
 
 struct serial* global_serial;
 
-#define SOS_SYSCALL0 0
-#define SOS_SERIALWRITE 1
-
-seL4_CPtr _sos_ipc_ep_cap;
-seL4_CPtr _sos_interrupt_ep_cap;
+seL4_CPtr sos_syscall_cap;
+seL4_CPtr sos_interrupt_cap;
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
 static void* sos_main(void* unusedarg);
@@ -96,8 +98,11 @@ extern fhandle_t mnt_point;
 void handle_syscall(seL4_Word badge, int num_args) {
 	seL4_Word syscall_number;
 	seL4_CPtr reply_cap;
-	struct process* process = tty_test_process;
-
+	struct process* process = get_process(badge);
+	if (process == NULL) {
+		dprintf(0, "SYSCALL from unknown process with PID %u\n", badge);
+		panic("Unknown process made a syscall");
+	}
 	struct ipc_command ipc = ipc_create();
 	ipc_unpacki(&ipc, &syscall_number);
 
@@ -120,8 +125,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
 	reply_cap = cspace_save_reply_cap(cur_cspace);
 	assert(reply_cap != CSPACE_NULL);
 	/* Process system call */
-	dprintf(2, "SYSCALL: %d with args: (%08x %08x %08x %08x)\n", syscall_number,
-			arg1, arg2, arg3, arg4);
+	dprintf(
+		2, "SYSCALL: %d from proc (%s:%u) with args: (%08x %08x %08x %08x)\n",
+		syscall_number, process->name, process->pid, arg1, arg2, arg3, arg4);
 	switch (syscall_number) {
 		case SOS_SYSCALL_SERIALWRITE: {
 			err = syscall_serialwrite(process, arg1, arg2, &ret1);
@@ -154,6 +160,27 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		case SOS_SYSCALL_GETDIRENT: {
 			err = syscall_getdirent(process, arg1, arg2, arg3);
 		} break;
+		case SOS_SYSCALL_PROCESS_CREATE: {
+			err = syscall_process_create(process, arg1);
+		} break;
+		/* This syscall should never return */
+		case SOS_SYSCALL_EXIT: {
+			err = syscall_process_exit(process, arg1);
+			cspace_free_slot(cur_cspace, reply_cap);
+			return;
+		} break;
+		case SOS_SYSCALL_PROCESS_MY_ID: {
+			err = syscall_process_my_id(process);
+		} break;
+		case SOS_SYSCALL_PROCESS_STATUS: {
+			err = syscall_process_status(process, arg1, arg2);
+		} break;
+		case SOS_SYSCALL_PROCESS_KILL: {
+			err = syscall_process_kill(process, arg1);
+		} break;
+		case SOS_SYSCALL_PROCESS_WAIT: {
+			err = syscall_process_wait(process, arg1);
+		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);
@@ -164,8 +191,10 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		}
 	}
 	dprintf(2,
-			"SYSCALL RET: %d with values: (err: %08x, args %08x %08x %08x)\n",
-			syscall_number, err, ret1, ret2, ret3, ret4);
+			"SYSCALL RET: %d to proc (%s:%u) with values: (err: %08x, args "
+			"%08x %08x %08x)\n",
+			syscall_number, process->name, process->pid, err, ret1, ret2, ret3,
+			ret4);
 
 	/* Respond to the syscall */
 	ipc = ipc_create();
@@ -208,16 +237,35 @@ void* handle_event(void* e) {
 			timer_interrupt_epit2();
 		}
 
-	} else if (label == seL4_VMFault) {
-		dprintf(2, "VMFAULT\n");
-		sos_handle_vmfault(tty_test_process);
-
-	} else if (label == seL4_NoFault) {
-		/* System call */
-		handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-
 	} else {
-		printf("Rootserver got an unknown message\n");
+		struct process* process = get_process(badge);
+		if (process) {
+			kassert(process->current_coroutine == NULL);
+			// mark the current coroutine so we know not to kill it
+			process->current_coroutine = current_coro();
+
+			if (label == seL4_VMFault) {
+				dprintf(3, "VMFAULT\n");
+				sos_handle_vmfault(process);
+
+			} else if (label == seL4_NoFault) {
+				/* System call */
+				handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
+			}
+
+			// handle the cases when process dies
+			// e.g you call the exit syscall and the
+			// process pointer is no longer valid
+			process = get_process(badge);
+			if (process) {
+				// it's now ok to kill it
+				process->current_coroutine = NULL;
+				signal(process->event_finished_syscall, NULL);
+			}
+
+		} else {
+			printf("Rootserver got an unknown message\n");
+		}
 	}
 	dprintf(3, "Coro complete\n");
 	return 0;
@@ -233,6 +281,8 @@ void* event_loop(void* void_ep) {
 		label = seL4_MessageInfo_get_label(message);
 		struct event e = {badge, label, message};
 		coro event_handler = coroutine(&handle_event);
+
+		trace(5);
 		resume(event_handler, &e);
 	}
 	return NULL;
@@ -307,8 +357,8 @@ static void print_bootinfo(const seL4_BootInfo* info) {
 void start_first_process(char* app_name, seL4_CPtr fault_ep) {
 	/* Run the init process... if we actually used an init, actually just a
 	 * shell */
-	struct process* process = process_create(CONFIG_SOS_STARTUP_APP, fault_ep);
-	tty_test_process = process;
+	struct process* process = process_create(CONFIG_SOS_STARTUP_APP);
+	conditional_panic(process == NULL, "Failed to create initial process");
 }
 
 static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
@@ -329,7 +379,7 @@ int main(void) {
 
 	dprintf(0, "\nSOS Starting...\n");
 
-	_sos_early_init(&_sos_ipc_ep_cap, &_sos_interrupt_ep_cap);
+	_sos_early_init(&sos_syscall_cap, &sos_interrupt_cap);
 	panic("This should never be reached");
 	/* Not reached */
 	return 0;
@@ -398,14 +448,16 @@ static void* _sos_late_init(void* unusedarg) {
 	ft_initialize();
 
 	/* Initialiase other system compenents here */
-	_sos_ipc_init(&_sos_ipc_ep_cap, &_sos_interrupt_ep_cap);
+	_sos_ipc_init(&sos_syscall_cap, &sos_interrupt_cap);
 	/* Main will yield at some point, at which point we'll start the main event
 	 * loop *
 	 * which will handle interrupts as SOS initializes */
 	coro main_func = coroutine(sos_main);
+	trace(5);
 	resume(main_func, NULL);
 	coro coro_event_loop = coroutine(event_loop);
-	resume(coro_event_loop, (void*)_sos_ipc_ep_cap);
+	trace(5);
+	resume(coro_event_loop, (void*)sos_syscall_cap);
 	panic("We should not be here");
 	return NULL;
 }
@@ -434,17 +486,27 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 }
 static void* sos_main(void* na) {
 	/* Initialise the network hardware */
-	network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
+	network_init(badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_NETWORK));
 
-	start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT1),
-				badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_EPIT2));
+	start_timer(badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_EPIT1),
+				badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_EPIT2));
+
+#ifdef CONFIG_SOS_DEBUG_NETWORK
+	global_debug_serial = serial_init(CONFIG_SOS_DEBUG_NETWORK_PORT);
+#endif
 
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
+	conditional_panic(vm_init() < 0, "VM init failed");
 	conditional_panic(swap_init() < 0, "Swap init failed");
 
+	any_pid_exit_signal = semaphore_create();
+	if (any_pid_exit_signal == NULL) {
+		dprintf(0, "\nFAILED TO MAKE 'any_pid_exit_signal' semaphore \n");
+		return NULL;
+	}
 	/* Start the user application */
-	start_first_process("First Process", _sos_ipc_ep_cap);
+	start_first_process("First Process", sos_syscall_cap);
 	dprintf(0, "\nSOS fully initialized\n");
 
 	return NULL;

@@ -8,19 +8,20 @@
  * @TAG(NICTA_BSD)
  */
 
+#include <ipc.h>
 #include <sel4/sel4.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <syscall.h>
 #include "sos.h"
-
-static void sel4_abort() {
+/*static void sel4_abort() {
 	printf("sos aborting\n");
 #ifdef SEL4_DEBUG_KERNEL
 	seL4_DebugHalt();
 #endif
 	while (1)
-		; /* We don't return after this */
-}
+		; We don't return after this */
+//}
 
 long sys_rt_sigprocmask(va_list ap) {
 	/* abort messages with signals in order to kill itself */
@@ -38,7 +39,7 @@ long sys_getpid(va_list ap) {
 }
 
 long sys_exit(va_list ap) {
-	abort();
+	SYSCALL_ARG1(SOS_SYSCALL_EXIT, 0);
 	return 0;
 }
 
@@ -48,6 +49,6 @@ long sys_exit_group(va_list ap) {
 }
 
 long sys_tgkill(va_list ap) {
-	sel4_abort();
+	sys_exit(ap);
 	return 0;
 }
