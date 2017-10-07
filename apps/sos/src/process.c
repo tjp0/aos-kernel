@@ -32,17 +32,21 @@ void process_zombie_reap(struct process* process);
 /* PID 0 is reserved, not used for anything */
 struct process* process_table[MAX_PROCESSES];
 
-/* Returns 0 if no PIDs free */
+/* return a pid if free or if it represents a zombie process
+ * Returns 0 if no PIDs free */
 static uint32_t get_new_pid(void) {
 	static uint32_t curpid = 1;
 	for (uint32_t i = curpid + 1; i < MAX_PROCESSES; ++i) {
-		if (process_table[i] == NULL) {
+		if (process_table[i] == NULL ||
+			process_table[i]->status == PROCESS_ZOMBIE) {
 			curpid = i;
 			return i;
 		}
 	}
+
 	for (uint32_t i = 1; i < curpid; ++i) {
-		if (process_table[i] == NULL) {
+		if (process_table[i] == NULL ||
+			process_table[i]->status == PROCESS_ZOMBIE) {
 			curpid = i;
 			return i;
 		}
@@ -93,13 +97,13 @@ struct process* process_create(char* app_name) {
 	trace(5);
 	process->name = strdup(app_name);
 
-	/* Create the semaphore for if we are in a syscall*/
+	/* Create semaphores for if we are in a syscall*/
 	process->event_finished_syscall = semaphore_create();
 	if (process->event_finished_syscall == NULL) {
 		goto err1_3;
 	}
 	trace(5);
-	/* Create the semaphore for if we are in a syscall*/
+
 	process->event_exited = semaphore_create();
 	if (process->event_exited == NULL) {
 		goto err1_4;
@@ -323,10 +327,13 @@ void process_kill(struct process* process, uint32_t status) {
 		return;
 	}
 
+	/* wait until a syscall is finished (if needed), unless it is called
+	 * exit */
 	if (process->current_coroutine != NULL &&
 		process->current_coroutine != current_coro()) {
 		wait(process->event_finished_syscall);
 	}
+
 	/* While we waited, something else might have killed us */
 	if (process->status == PROCESS_ZOMBIE) {
 		return;
