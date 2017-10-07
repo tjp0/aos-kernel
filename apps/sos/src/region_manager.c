@@ -16,6 +16,13 @@
 /* Leave a 4K page minimum between expanding regions */
 #define REGION_SAFETY PAGE_SIZE_4K
 
+void default_load_page(region_node* reg, struct vspace* vspace, vaddr_t vaddr) {
+	return;
+}
+void default_clean(region_node* reg, struct vspace* vspace, vaddr_t vaddr) {
+	return;
+}
+
 static int create_initial_regions(region_list* reg_list) {
 	region_node* ipc_buffer =
 		add_region(reg_list, PROCESS_TOP, PAGE_SIZE_4K,
@@ -82,7 +89,8 @@ static region_node* findspot(region_node* start, vaddr_t vaddr) {
 }
 
 region_node* make_region_node(vaddr_t addr, unsigned int size,
-							  unsigned int perm) {
+							  unsigned int perm, load_page_func load_page,
+							  clean_page_func clean_page, void* data) {
 	region_node* new_node = malloc(sizeof(region_node));
 	if (new_node == NULL) {
 		return NULL;
@@ -93,18 +101,35 @@ region_node* make_region_node(vaddr_t addr, unsigned int size,
 	new_node->size = size;
 	new_node->perm = perm;
 	new_node->name = "ELF";
+
+	if (load_page == NULL) {
+		region->load_page = default_load_page;
+	} else {
+		region->load_page = load_page;
+	}
+
+	if (clean == NULL) {
+		region->clean = default_clean;
+	} else {
+		region->clean = clean;
+	}
+
+	region->data = data;
+
 	return new_node;
 }
 
 region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
-						unsigned int perm) {
+						unsigned int perm, load_page_func load_page,
+						clean_page_func clean_page, void* data) {
 	assert(IS_ALIGNED_4K(addr));
 	assert(IS_ALIGNED_4K(size));
 	assert(reg_list != NULL);
 
 	region_node* cur = reg_list->start;
 
-	region_node* new_node = make_region_node(addr, size, perm);
+	region_node* new_node =
+		make_region_node(addr, size, perm, load_page, clean_page, data);
 	if (new_node == NULL) {
 		return NULL;
 	}
