@@ -288,6 +288,7 @@ int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
 	return VM_OKAY;
 }
 
+/* called whenever a page doesn't exist in the pagetable */
 int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	dprintf(1, "VM MISSING PAGE CALLED AT ADDRESS %p\n", (void*)address);
 	address = PAGE_ALIGN_4K(address);
@@ -317,7 +318,7 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	if (region == NULL) {
 		trace(5);
 		dprintf(0, "Failed to find region for missing page\n");
-		return VM_NOREGION;
+		return VM_NOREGION;  // VM_NORWEGIAN lol
 	}
 
 	if ((pte = pd_createpage(vspace->pagetable, address, region->perm)) ==
@@ -329,6 +330,10 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 			pd_getpage(vspace->pagetable, address));
 
 	assert(pd_getpage(vspace->pagetable, address) == pte);
+
+	/* load data into page */
+	region->load_page(region, vspace, address);
+
 	return VM_OKAY;
 }
 

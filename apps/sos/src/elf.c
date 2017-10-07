@@ -40,6 +40,23 @@ static inline seL4_Word get_vm_perms_from_elf(unsigned long permissions) {
 	return result;
 }
 
+// TODO: implement these bad boyz
+void load_file_from_nfs(region_node *reg, struct vspace *vspace, vaddr_t vaddr);
+void clean_file_things(region_node *reg);
+
+void load_file_from_nfs(region_node *reg, struct vspace *vspace,
+						vaddr_t vaddr) {
+	struct fd file;
+	nfs_dev_open(&file, "blek", FM_READ);
+
+	file.offset = calc page offset;
+
+	file.dev_read(&file, vspace, vaddr);
+}
+
+void setup_data_pointer(void) {}
+
+void clean_file_things(region_node *reg) {}
 /*
  * Inject data into the given vspace.
  * TODO: Don't keep these pages mapped in
@@ -75,18 +92,30 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 	segment_size = PAGE_ALIGN_4K(segment_size + PAGE_SIZE_4K);
 	dprintf(0, "Creating region at %p to %p\n", (void *)dst_region,
 			(void *)dst_region + segment_size);
+
+	//#pastie thoughts
+	// do some setup and malloc things for data_pointer
+	// the clean_elf_things funciton will free this
+	// load_elf_from_nfs will use the data_pointer to get what it points to
+	// which will be some offests and file names and it'll use this to
+	// load the data over nfs into the region
+
 	region_node *node =
-		add_region(vspace->regions, dst_region, segment_size, permissions);
+		add_region(vspace->regions, dst_region, segment_size, permissions,
+				   load_elf_from_nfs, clean_elf_things, data_pointer);
+
 	dprintf(0, "Region at %p to %p created\n", (void *)dst_region,
 			(void *)dst_region + segment_size);
 
 	assert(node != NULL);
 	assert(file_size <= segment_size);
 
-	if (copy_sos2vspace(src, dst, vspace, file_size, COPY_INSTRUCTIONFLUSH) <
-		0) {
-		return -1;
-	}
+	// 1. comment out elf.c crap
+	// if (copy_sos2vspace(src, dst, vspace, file_size, COPY_INSTRUCTIONFLUSH) <
+	// 	0) {
+	// 	return -1;
+	// }
+
 	dprintf(0, "Initial data copied to region at %p\n", (void *)dst);
 	return 0;
 }
