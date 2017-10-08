@@ -10,7 +10,7 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 0
+#define verbose 10
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -333,8 +333,9 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 
 	/* load data into page */
 	// TODO fix edgecases
-	// region->load_page(region, vspace, address);
-
+	trace(5);
+	region->load_page(region, vspace, address);
+	trace(5);
 	return VM_OKAY;
 }
 

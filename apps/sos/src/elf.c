@@ -24,7 +24,7 @@
 #include <ut_manager/ut.h>
 #include <vm.h>
 #include <vmem_layout.h>
-#define verbose 0
+#define verbose 10
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -165,16 +165,17 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 			(void *)dst_region + region_size);
 
 	// TODO
-	// assert(node != NULL);
-	// assert(file_size <= region_size);
+	assert(node != NULL);
+	assert(file_size <= region_size);
 
 	// 1. comment out elf.c crap
-	if (copy_sos2vspace(src, dst, vspace, file_size, COPY_INSTRUCTIONFLUSH) <
+/*	if (copy_sos2vspace(src, dst, vspace, file_size, COPY_INSTRUCTIONFLUSH) <
 		0) {
 		return -1;
 	}
 
 	dprintf(0, "Initial data copied to region at %p\n", (void *)dst);
+	*/
 	return 0;
 }
 

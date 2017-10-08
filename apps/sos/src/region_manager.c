@@ -105,15 +105,15 @@ region_node* make_region_node(vaddr_t addr, unsigned int size,
 	new_node->name = "ELF";
 
 	if (load_page == NULL) {
-		new_node->load_page = &default_load_page;
+		new_node->load_page = default_load_page;
 	} else {
-		new_node->load_page = &load_page;
+		new_node->load_page = load_page;
 	}
 
 	if (clean_page == NULL) {
-		new_node->clean = &default_clean;
+		new_node->clean = default_clean;
 	} else {
-		new_node->clean = &clean_page;
+		new_node->clean = clean_page;
 	}
 
 	new_node->data = data;
