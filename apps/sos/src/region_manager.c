@@ -10,12 +10,14 @@
 #include <stdlib.h>
 #include <vm.h>
 #include <vmem_layout.h>
+
 #define verbose 5
 #include <sys/debug.h>
 
 /* Leave a 4K page minimum between expanding regions */
 #define REGION_SAFETY PAGE_SIZE_4K
 
+// might want to memset memory to 0 but don't think it's needed
 void default_load_page(region_node* reg, struct vspace* vspace, vaddr_t vaddr) {
 	return;
 }
@@ -26,14 +28,14 @@ void default_clean(region_node* reg, struct vspace* vspace, vaddr_t vaddr) {
 static int create_initial_regions(region_list* reg_list) {
 	region_node* ipc_buffer =
 		add_region(reg_list, PROCESS_TOP, PAGE_SIZE_4K,
-				   PAGE_READABLE | PAGE_WRITABLE | PAGE_PINNED);
+				   PAGE_READABLE | PAGE_WRITABLE | PAGE_PINNED, 0, 0, 0);
 	if (ipc_buffer == NULL) {
 		return REGION_FAIL;
 	}
 
 	region_node* stack =
 		add_region(reg_list, PROCESS_TOP - PAGE_SIZE_4K, PAGE_SIZE_4K,
-				   PAGE_READABLE | PAGE_WRITABLE);
+				   PAGE_READABLE | PAGE_WRITABLE, 0, 0, 0);
 	if (stack == NULL) {
 		return REGION_FAIL;
 	}
@@ -89,8 +91,8 @@ static region_node* findspot(region_node* start, vaddr_t vaddr) {
 }
 
 region_node* make_region_node(vaddr_t addr, unsigned int size,
-							  unsigned int perm, load_page_func load_page,
-							  clean_page_func clean_page, void* data) {
+							  unsigned int perm, void* load_page,
+							  void* clean_page, void* data) {
 	region_node* new_node = malloc(sizeof(region_node));
 	if (new_node == NULL) {
 		return NULL;
@@ -103,25 +105,25 @@ region_node* make_region_node(vaddr_t addr, unsigned int size,
 	new_node->name = "ELF";
 
 	if (load_page == NULL) {
-		region->load_page = default_load_page;
+		new_node->load_page = &default_load_page;
 	} else {
-		region->load_page = load_page;
+		new_node->load_page = &load_page;
 	}
 
-	if (clean == NULL) {
-		region->clean = default_clean;
+	if (clean_page == NULL) {
+		new_node->clean = &default_clean;
 	} else {
-		region->clean = clean;
+		new_node->clean = &clean_page;
 	}
 
-	region->data = data;
+	new_node->data = data;
 
 	return new_node;
 }
 
 region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
-						unsigned int perm, load_page_func load_page,
-						clean_page_func clean_page, void* data) {
+						unsigned int perm, void* load_page, void* clean_page,
+						void* data) {
 	assert(IS_ALIGNED_4K(addr));
 	assert(IS_ALIGNED_4K(size));
 	assert(reg_list != NULL);
@@ -209,8 +211,8 @@ region_node* create_heap(region_list* region_list) {
 
 	vaddr_t base_addr = prev->vaddr + prev->size + REGION_SAFETY;
 
-	region_node* heap =
-		add_region(region_list, base_addr, 0, PAGE_READABLE | PAGE_WRITABLE);
+	region_node* heap = add_region(region_list, base_addr, 0,
+								   PAGE_READABLE | PAGE_WRITABLE, 0, 0, 0);
 
 	if (heap == NULL) {
 		return NULL;

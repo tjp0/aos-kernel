@@ -332,7 +332,8 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	assert(pd_getpage(vspace->pagetable, address) == pte);
 
 	/* load data into page */
-	region->load_page(region, vspace, address);
+	// TODO fix edgecases
+	// region->load_page(region, vspace, address);
 
 	return VM_OKAY;
 }

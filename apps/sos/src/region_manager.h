@@ -9,10 +9,11 @@
 #define REGION_GOOD 1
 
 // #define IS_ALIGNED_4K(addr) IS_ALIGNED(addr, PAGE_BITS_4K)
+struct _region_node;
 
-typedef void (*load_page_func)(region_node* reg, struct vspace* vspace,
+typedef void (*load_page_func)(struct _region_node* reg, struct vspace* vspace,
 							   vaddr_t vaddr);
-typedef void (*clean_func)(region_node* reg);
+typedef void (*clean_func)(struct _region_node* reg);
 
 typedef struct _region_node {
 	vaddr_t vaddr;
@@ -22,7 +23,7 @@ typedef struct _region_node {
 	struct _region_node* next;
 	struct _region_node* prev;
 	load_page_func load_page;
-	clean_page_func clean;
+	clean_func clean;
 	void* data;
 } region_node;
 
@@ -38,13 +39,13 @@ int init_region_list(region_list** reg_list);
 
 /* malloc the thing and get things set up*/
 region_node* make_region_node(vaddr_t addr, unsigned int size,
-							  unsigned int perm, load_page_func load_page,
-							  clean_func clean, void* data);
+							  unsigned int perm, void* load_page, void* clean,
+							  void* data);
 
 /* Returns 0 on success */
 region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
-						unsigned int perm, load_page_func load_page,
-						clean_func clean, void* data);
+						unsigned int perm, void* load_page, void* clean_page,
+						void* data);
 
 void region_list_destroy(region_list* reg_list);
 
