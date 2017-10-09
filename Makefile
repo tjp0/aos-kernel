@@ -32,6 +32,7 @@ include tools/common/project.mk
 all: app-images
 	mkdir -p $(TFTPROOT)
 	cp -v $(IMAGE_ROOT)/sos-image-arm-imx6 $(TFTPROOT)/bootimg.elf
+	cp -v $(STAGE_BASE)/bin/* $(TFTPROOT)/
 	$(MAKE) reset
 
 .PHONY: reset
