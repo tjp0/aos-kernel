@@ -60,20 +60,8 @@ struct process* get_process(int32_t pid) {
 	return process_table[pid];
 }
 
-static void* test_cspace() {
-	trace(5);
-	cspace_t* croot = cspace_create(1);
-	trace(5);
-	cspace_destroy(croot);
-	trace(5);
-	croot = cspace_create(1);
-	trace(5);
-	cspace_destroy(croot);
-}
-
 struct process* process_create(char* app_name) {
 	int err;
-	test_cspace();
 	dprintf(0, "*** CREATING PROCESS (%s) ***\n", app_name);
 	// seL4_Word stack_addr;
 	// seL4_CPtr stack_cap;
@@ -81,10 +69,6 @@ struct process* process_create(char* app_name) {
 	trace(5);
 	/* These required for setting up the TCB */
 	seL4_UserContext context;
-
-	/* These required for loading program sections */
-	char* elf_base = NULL;
-	unsigned long elf_size;
 
 	struct process* process = malloc(sizeof(struct process));
 	if (process == NULL) {
@@ -247,7 +231,6 @@ err14:
 err13:
 err12:
 err11:
-err10:
 	trace(5);
 	cspace_delete_cap(cur_cspace, process->tcb_cap);
 err9:
@@ -256,8 +239,6 @@ err8:
 	cspace_delete_cap(process->croot, user_ep_cap);
 err7_5:
 	trace(5);
-err7:
-err6:
 	trace(5);
 	cspace_destroy(process->croot);
 err5:

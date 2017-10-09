@@ -115,7 +115,7 @@ int serial_write(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 
 	while (written < length) {
 		size_t to_copy = MIN(sizeof(array), length - written);
-		if (copy_vspace2sos(procbuf, array, vspace, to_copy, 0) < 0) {
+		if (copy_vspace2sos(procbuf + written, array, vspace, to_copy, 0) < 0) {
 			return -1;
 		}
 		size_t just = serial_send(global_serial, array, to_copy);

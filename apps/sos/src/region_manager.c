@@ -21,9 +21,7 @@
 void default_load_page(region_node* reg, struct vspace* vspace, vaddr_t vaddr) {
 	return;
 }
-void default_clean(region_node* reg, struct vspace* vspace, vaddr_t vaddr) {
-	return;
-}
+void default_clean(region_node* reg) { return; }
 
 static int create_initial_regions(region_list* reg_list) {
 	region_node* ipc_buffer =
@@ -226,7 +224,7 @@ void regions_print(region_list* regions) {
 	region_node* cur = regions->start;
 	// printf("----------------------\n");
 	while (cur) {
-		printf("0x%08x -> 0x%08x: perm: %08u, | %08s |", cur->vaddr,
+		printf("0x%08x -> 0x%08x: perm: %08u, | %s", cur->vaddr,
 			   cur->vaddr + cur->size, cur->perm, cur->name);
 		if (cur->perm & PAGE_WRITABLE) {
 			printf(" WRITABLE");

@@ -167,8 +167,6 @@ static int resume_coro(void *coro, void *var) {
 	return 0;
 }
 
-static int cmp_equality(void *a, void *b) { return !(a == b); }
-
 /* returns 1 if lock is locked, 0 on error */
 static int is_locked(struct lock *lock) {
 	if (lock->locked == NULL) {
