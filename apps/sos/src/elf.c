@@ -26,8 +26,10 @@
 #include <vmem_layout.h>
 #define verbose 10
 #include <sys/debug.h>
+#include <sys/kassert.h>
 #include <sys/panic.h>
 
+#define ELF_HEADER_SIZE 4096
 /*
  * Convert ELF permissions into seL4 permissions.
  */
@@ -41,79 +43,82 @@ static inline seL4_Word get_vm_perms_from_elf(unsigned long permissions) {
 	return result;
 }
 
-// TODO: move this to a .h file or somehwere better
-typedef struct _nfs_file_reference {
+struct nfs_elf_reference {
 	char *filename;
 
-	uint64_t memory_seg_start;
-	uint64_t file_seg_start;
-	uint64_t size_of_segment_file;
-	uint64_t size_of_segment_memory;
+	uint32_t memory_seg_start;
+	uint32_t file_seg_start;
+	uint32_t size_of_segment_file;
+	uint32_t size_of_segment_memory;
+};
 
-} nfs_file_reference;
+static uint32_t min(int32_t a, uint32_t b) { return (a < b) ? a : b; }
 
-// TODO: implement these bad boyz
-void load_file_from_nfs(region_node *reg, struct vspace *vspace, vaddr_t vaddr);
-void clean_file_things(region_node *reg);
-
-static uint64_t max(uint64_t a, uint64_t b) { return a ? (a > b) : b; }
-// static uint64_t min(uint64_t a, uint64_t b) { return a ? (a < b) : b; }
-static uint64_t min3(uint64_t a, uint64_t b, uint64_t c) {
-	return a ? (a <= b && a <= c) : b ? (b <= c) : c;
-}
-
-void load_file_from_nfs(region_node *reg, struct vspace *vspace,
-						vaddr_t vaddr) {
+static int load_file_from_nfs(region_node *reg, struct vspace *vspace,
+							  vaddr_t vaddr) {
+	dprintf(3, "Loading %08x from ELF file over NFS\n", vaddr);
 	struct fd file;
-	nfs_file_reference *ref = ((nfs_file_reference *)reg->data);
+	struct nfs_elf_reference *ref = ((struct nfs_elf_reference *)reg->data);
 	nfs_dev_open(&file, ref->filename, FM_READ);
 
-	uint64_t read_start = max(ref->memory_seg_start, PAGE_ALIGN_4K(vaddr));
-
-	if (read_start >= ref->memory_seg_start &&
-		read_start <= ref->memory_seg_start + ref->size_of_segment_file) {
-		// I think there are some edge cases not accounted for here
-		uint64_t size_to_read =
-			min3(PAGE_SIZE_4K,
-				 ref->memory_seg_start + ref->size_of_segment_file - read_start,
-				 PAGE_ALIGN_UP_4K(read_start + 1) - ref->memory_seg_start);
-
-		file.offset =
-			ref->file_seg_start + (read_start - ref->memory_seg_start);
-
-		file.dev_read(&file, vspace, read_start, size_to_read);
+	uint32_t region_start = reg->vaddr;
+	uint32_t memory_start = ref->memory_seg_start;
+	uint32_t local_offset = memory_start - region_start;
+	uint32_t first_offset = 0;
+	uint32_t file_offset = 0;
+	if (vaddr == reg->vaddr) {
+		first_offset = local_offset;
+		file_offset = ref->file_seg_start;
 	} else {
-		// fill with 0's
+		file_offset =
+			(vaddr - region_start) + ref->file_seg_start - local_offset;
 	}
-}
 
-void *setup_data_pointer(uint64_t memory_seg_start, uint64_t file_seg_start,
-						 uint64_t size_of_segment_file,
-						 uint64_t size_of_segment_memory, char *elf_file_name) {
-	nfs_file_reference *elf_info = malloc(sizeof(struct _nfs_file_reference));
-	if (!elf_info) {
-		return NULL;
+	uint32_t max_space = PAGE_SIZE_4K - first_offset;
+	uint32_t file_size_left = 0;
+
+	dprintf(3, "segfile: %08x, curof: %08x, sstart: %08x, sizein: %08x\n",
+			ref->size_of_segment_file, file_offset, ref->file_seg_start,
+			file_offset - ref->file_seg_start);
+	if (ref->size_of_segment_file >= (file_offset - ref->file_seg_start)) {
+		file_size_left =
+			(ref->size_of_segment_file - (file_offset - ref->file_seg_start));
+	} else {
+		dprintf(3, "%08x is a NULL page\n", vaddr);
+		return 0;
 	}
-	elf_info->memory_seg_start = memory_seg_start;
-	elf_info->file_seg_start = file_seg_start;
-	elf_info->size_of_segment_file = size_of_segment_file;
-	elf_info->size_of_segment_memory = size_of_segment_memory;
 
-	elf_info->filename = elf_file_name;
-	return elf_info;
+	dprintf(3,
+			"File seg start: %08x, File seg vaddr start: %08x, File offset: "
+			"%08x, Size of segment_file: %08x, file_size_left %08x, local "
+			"offset: %08x\n",
+			ref->file_seg_start, ref->memory_seg_start, file_offset,
+			ref->size_of_segment_file, file_size_left, local_offset);
+	dprintf(3, "Region start: %08x\n", region_start);
+
+	uint32_t amount_to_write = min(max_space, file_size_left);
+	dprintf(3,
+			"Loading from file (<%s>:%08x) to page: %08x, interior: %08x, of "
+			"size: %08x\n",
+			ref->filename, file_offset, vaddr, vaddr + first_offset,
+			amount_to_write);
+	if (amount_to_write != 0) {
+		file.offset = file_offset;
+		if (file.dev_read(&file, vspace, vaddr + first_offset,
+						  amount_to_write) != amount_to_write) {
+			return -1;
+		}
+	}
+	return 0;
 }
+static void clean_file_things(region_node *reg) { free(reg->data); }
 
-void clean_file_things(region_node *reg) { free(reg->data); }
-/*
- * Inject data into the given vspace.
- * TODO: Don't keep these pages mapped in
- */
 static int load_segment_into_vspace(struct vspace *vspace, char *src,
 									unsigned long segment_size,
 									unsigned long file_size, unsigned long dst,
 									unsigned long permissions,
 									char *elf_file_name,
-									uint64_t segment_start_offset) {
+									unsigned long segment_start_offset) {
 	/* Overview of ELF segment loading
 
 	   dst: destination base virtual address of the segment being loaded
@@ -131,55 +136,73 @@ static int load_segment_into_vspace(struct vspace *vspace, char *src,
 
 	   Note: if file_size == segment_size, there is no zero-filled region.
 	   Note: if file_size == 0, the whole segment is just zero filled.
-
-	   The code below relies on seL4's frame allocator already
-	   zero-filling a newly allocated frame.
-
 	*/
+
 	// use page align up
 	unsigned long dst_region = PAGE_ALIGN_4K(dst);
-	unsigned long region_size = PAGE_ALIGN_UP_4K(segment_size + dst_region);
-	dprintf(0, "Creating region at %p to %p\n", (void *)dst_region,
-			(void *)dst_region + region_size);
+	unsigned long region_size =
+		PAGE_ALIGN_UP_4K(segment_size + dst_region) - dst_region;
+	dprintf(0,
+			"Creating region at %p to %p, from file offset: %x to %x (file "
+			"size is %x)\n",
+			(void *)dst_region, (void *)dst_region + region_size,
+			(uint32_t)segment_start_offset,
+			(uint32_t)segment_start_offset + file_size, (uint32_t)file_size);
 
-	//#pastie thoughts
-	// do some setup and malloc things for data_pointer
-	// the clean_elf_things funciton will free this
-	// load_elf_from_nfs will use the data_pointer to get what it points to
-	// which will be some offests and file names and it'll use this to
-	// load the data over nfs into the region
+	void *alloc_func = NULL;
+	void *clean_func = NULL;
+	struct nfs_elf_reference *data_pointer = NULL;
 
-	/* Start reading from segment_start_offset*/
-
-	void *data_pointer = setup_data_pointer(
-		dst, segment_start_offset, segment_size, file_size, elf_file_name);
-	if (!data_pointer) {
-		return -1;
+	if (file_size > 0) {
+		data_pointer = malloc(sizeof(struct nfs_elf_reference));
+		if (!data_pointer) {
+			return -1;
+		}
+		data_pointer->memory_seg_start = dst;
+		data_pointer->file_seg_start = segment_start_offset;
+		data_pointer->size_of_segment_file = file_size;
+		data_pointer->size_of_segment_memory = region_size;
+		data_pointer->filename = elf_file_name;
+		alloc_func = load_file_from_nfs;
+		clean_func = clean_file_things;
 	}
-
 	region_node *node =
 		add_region(vspace->regions, dst_region, region_size, permissions,
-				   load_file_from_nfs, clean_file_things, data_pointer);
+				   alloc_func, clean_func, data_pointer);
 
 	dprintf(0, "Region at %p to %p created\n", (void *)dst_region,
 			(void *)dst_region + region_size);
 
-	// TODO
-	assert(node != NULL);
-	assert(file_size <= region_size);
-
-	// 1. comment out elf.c crap
-/*	if (copy_sos2vspace(src, dst, vspace, file_size, COPY_INSTRUCTIONFLUSH) <
-		0) {
+	if (node == NULL || file_size > region_size) {
 		return -1;
 	}
-
-	dprintf(0, "Initial data copied to region at %p\n", (void *)dst);
-	*/
 	return 0;
 }
 
-int elf_load(struct process *process, char *elf_file) {
+int elf_load(struct process *process, char *elf_path) {
+	trace(5);
+	char *elf_file = malloc(ELF_HEADER_SIZE);
+	if (elf_file == NULL) {
+		trace(5);
+		return -1;
+	}
+	trace(5);
+	struct fd fd;
+	dprintf(2, "Opening ELF from %s\n", elf_path);
+	if (nfs_dev_open(&fd, elf_path, FM_READ) < 0) {
+		free(elf_file);
+		trace(5);
+		return -1;
+	}
+	trace(5);
+	if (fd.dev_read(&fd, NULL, (vaddr_t)elf_file, ELF_HEADER_SIZE) !=
+		ELF_HEADER_SIZE) {
+		free(elf_file);
+		trace(5);
+		return -1;
+	}
+	dprintf(2, "Elf headers read\n");
+	trace(5);
 	int num_headers;
 	int err = 0;
 	int i;
@@ -197,9 +220,9 @@ int elf_load(struct process *process, char *elf_file) {
 
 		dprintf(0, " * Processing segment %d of %d\n", i + 1, num_headers);
 
-		uint64_t segment_start_offset = elf_getProgramHeaderOffset(elf_file, i);
 		/* Fetch information about this segment. */
-		source_addr = elf_file + segment_start_offset;  // not needed?
+		source_addr =
+			elf_file + elf_getProgramHeaderOffset(elf_file, i);  // not needed?
 		file_size = elf_getProgramHeaderFileSize(elf_file, i);
 		segment_size = elf_getProgramHeaderMemorySize(elf_file, i);
 		vaddr = elf_getProgramHeaderVaddr(elf_file, i);
@@ -210,9 +233,10 @@ int elf_load(struct process *process, char *elf_file) {
 				(int)(vaddr + segment_size));
 		err = load_segment_into_vspace(
 			&process->vspace, source_addr, segment_size, file_size, vaddr,
-			get_vm_perms_from_elf(flags), process->name, segment_start_offset);
+			get_vm_perms_from_elf(flags), process->name,
+			elf_getProgramHeaderOffset(elf_file, i));
 		conditional_panic(err != 0, "Elf loading failed!\n");
 	}
-
+	process->elfentry = elf_getEntryPoint(elf_file);
 	return 0;
 }

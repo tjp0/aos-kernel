@@ -49,7 +49,7 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 3
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -487,27 +487,32 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 static void* sos_main(void* na) {
 	/* Initialise the network hardware */
 	network_init(badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_NETWORK));
-
+	trace(5);
 	start_timer(badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_EPIT1),
 				badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_EPIT2));
-
+	trace(5);
 #ifdef CONFIG_SOS_DEBUG_NETWORK
 	global_debug_serial = serial_init(CONFIG_SOS_DEBUG_NETWORK_PORT);
+	trace(5);
 #endif
-
+	trace(5);
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
+	trace(5);
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
+	trace(5);
 	conditional_panic(vm_init() < 0, "VM init failed");
+	trace(5);
 	conditional_panic(swap_init() < 0, "Swap init failed");
-
+	trace(5);
 	any_pid_exit_signal = semaphore_create();
 	if (any_pid_exit_signal == NULL) {
 		dprintf(0, "\nFAILED TO MAKE 'any_pid_exit_signal' semaphore \n");
 		return NULL;
 	}
+	trace(5);
+	dprintf(0, "\nSOS fully initialized\n");
 	/* Start the user application */
 	start_first_process("First Process", sos_syscall_cap);
-	dprintf(0, "\nSOS fully initialized\n");
 
 	return NULL;
 }

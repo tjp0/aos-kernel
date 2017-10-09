@@ -12,15 +12,16 @@
 #define _DEBUG_H_
 
 #include <stdio.h>
-
+#include <utils/picoro.h>
 void plogf(const char* msg, ...);
-#define _dprintf(v, col, args...) \
-	do {                          \
-		if ((v) < verbose) {      \
-			printf(col);          \
-			plogf(args);          \
-			printf("\033[0;0m");  \
-		}                         \
+#define _dprintf(v, col, args...)               \
+	do {                                        \
+		if ((v) < verbose) {                    \
+			printf(col);                        \
+			printf("%u: ", current_coro_num()); \
+			plogf(args);                        \
+			printf("\033[0;0m");                \
+		}                                       \
 	} while (0)
 
 #define dprintf(v, ...) _dprintf(v, "\033[22;33m", __VA_ARGS__)

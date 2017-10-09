@@ -4,12 +4,12 @@
 #include <typedefs.h>
 #include <utils/list.h>
 #include <utils/page.h>
-
 #define REGION_FAIL 0
 #define REGION_GOOD 1
 
 // #define IS_ALIGNED_4K(addr) IS_ALIGNED(addr, PAGE_BITS_4K)
 struct _region_node;
+struct vspace;
 
 typedef void (*load_page_func)(struct _region_node* reg, struct vspace* vspace,
 							   vaddr_t vaddr);

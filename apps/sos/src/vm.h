@@ -19,6 +19,7 @@
 #define VM_OKAY 0
 
 /* The flag that defines if the page has been recently accessed */
+#define PAGE_ZOMBIE (1 << 5)
 #define PAGE_PINNED (1 << 4)
 #define PAGE_ACCESSED (1 << 3)
 #define PAGE_EXECUTABLE (1 << 2)

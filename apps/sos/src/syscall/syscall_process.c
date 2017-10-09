@@ -1,4 +1,5 @@
 #include <copy.h>
+#include <devices/devices.h>
 #include <process.h>
 #include <sos.h>
 #include <sos_coroutine.h>
@@ -8,6 +9,8 @@
 #include <sys/kassert.h>
 
 // extern struct semaphore* any_pid_exit_signal;
+
+#define ELF_HEADER_SIZE 4096
 
 uint32_t syscall_process_create(struct process* process, vaddr_t path) {
 	trace(5);

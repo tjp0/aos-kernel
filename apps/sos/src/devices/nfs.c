@@ -103,23 +103,31 @@ static void nfs_timeout_awaken(uint32_t id, void* data) {
 int nfs_dev_init(void) {
 	ip_addr_t ip;
 	ip.addr = ipaddr_addr(CONFIG_SOS_GATEWAY);
+	trace(5);
 	rpc_stat_t ret = nfs_init(&ip);
+	trace(5);
 	if (ret != RPC_OK) {
 		dprintf(0, "NFS Failed, ret: %u\n", ret);
+		trace(5);
 		return -1;
 	}
-
+	trace(5);
 	int err = register_timer(NFS_TIMEOUT, nfs_timeout_awaken, NULL);
+	trace(5);
 	conditional_panic(err < 0, "Failed to register NFS timer");
 	if (verbose > 0) {
+		trace(5);
 		nfs_print_exports();
 	}
+	trace(5);
 	ret = nfs_mount(CONFIG_SOS_NFS_DIR, &mounted_fs);
+	trace(5);
 	if (ret != RPC_OK) {
+		trace(5);
 		dprintf(0, "NFS failed to mount, ret: %u\n", ret);
 		return -1;
 	}
-
+	trace(5);
 	dprintf(0, "NFS share mounted\n");
 	return 0;
 };
@@ -406,6 +414,7 @@ int nfs_dev_open(struct fd* fd, char* name, int flags) {
 
 		if (stat != 0) {
 			// error
+			free(data);
 			return -stat;
 		}
 		data->fhandle = fh;

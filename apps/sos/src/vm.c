@@ -10,7 +10,7 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 10
+#define verbose 4
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -126,23 +126,24 @@ static void pt_free(struct page_table* pt) {
 	cspace_delete_cap(cur_cspace, pt->seL4_pt);
 	free(pt);
 }
-
 static void pte_free(struct page_table_entry* pte) {
 	lock(swaplock);
 	lock(pte->lock);
-	dprintf(3, "Destroying page %p at %p:%08u\n", pte, pte->pd, pte->address);
+	dprintf(3, "Destroying page %p at %p:%08x\n", pte, pte->pd, pte->address);
 	pte->pd->num_ptes--;
-	if (vm_pageisloaded(pte)) {
+	if (!vm_pageisloaded(pte)) {
+		swapfree_frame(pte->disk_frame_offset);
+	} else {
 		clock_remove(pte);
 		frame_free(frame_cell_to_vaddr(pte->frame));
 		cspace_delete_cap(cur_cspace, pte->cap);
-	} else {
-		swapfree_frame(pte->disk_frame_offset);
 	}
 	lock_destroy(pte->lock);
 	free(pte);
 	unlock(swaplock);
 }
+
+/* Returns a new PTE, already locked */
 static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
 	struct page_table_entry* pte = malloc(sizeof(struct page_table_entry));
 	memset(pte, 0, sizeof(struct page_table_entry));
@@ -156,6 +157,9 @@ static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
 		return NULL;
 	}
 
+	trace(5);
+	lock(pte->lock);
+	trace(5);
 	void* new_frame = frame_alloc_swap();
 	if (new_frame == NULL) {
 		free(pte);
@@ -190,7 +194,6 @@ void pd_free(struct page_directory* pd) {
 			pt_free(pd->pts[i]);
 		}
 	}
-	cspace_delete_cap(cur_cspace, pd->seL4_pd);
 	free(pd);
 }
 
@@ -254,7 +257,7 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 	}
 	return pte;
 }
-
+/* Returns a locked pte */
 struct page_table_entry* sos_map_page(struct page_directory* pd,
 									  vaddr_t address, uint8_t permissions) {
 	return pd_createpage(pd, address, permissions);
@@ -297,9 +300,11 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	/* If the page exists, but is swapped out, swap it in */
 	pte = pd_getpage(vspace->pagetable, address);
 	if (pte != NULL) {
+		lock(swaplock);
 		lock(pte->lock);
 		int ret = vm_swapin(pte);
 		unlock(pte->lock);
+		unlock(swaplock);
 		return ret;
 	}
 	/* Otherwise check if we're in a valid region and start
@@ -335,6 +340,7 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	// TODO fix edgecases
 	trace(5);
 	region->load_page(region, vspace, address);
+	unlock(pte->lock);
 	trace(5);
 	return VM_OKAY;
 }
@@ -350,7 +356,8 @@ bool vm_pageismarked(struct page_table_entry* pte) {
 	return (!(pte->flags & PAGE_ACCESSED));
 }
 int vm_swapout(struct page_table_entry* pte) {
-	lock(pte->lock);
+	kassert(lock_owned(swaplock));
+	kassert(lock_owned(pte->lock));
 	clock_remove(pte);
 	trace(5);
 	dprintf(1, "** pte %p\n", (void*)pte);
@@ -370,7 +377,6 @@ int vm_swapout(struct page_table_entry* pte) {
 	dprintf(1, "** pte %p\n", (void*)pte);
 	if (pte->disk_frame_offset < 0) {
 		panic("Bad disk offset to swapout\n");
-		unlock(pte->lock);
 		return VM_FAIL;
 	}
 
@@ -382,11 +388,12 @@ int vm_swapout(struct page_table_entry* pte) {
 	frame_free(frame_cell_to_vaddr(pte->frame));
 	trace(5);
 	pte->frame = NULL;
-	unlock(pte->lock);
 	return 0;
 }
 /* Prereq: The lock to pte is already held */
 int vm_swapin(struct page_table_entry* pte) {
+	kassert(lock_owned(swaplock));
+	kassert(lock_owned(pte->lock));
 	trace(4);
 	kassert(pte != NULL);
 	kassert(pte->frame == NULL);
@@ -463,7 +470,7 @@ void sos_handle_vmfault(struct process* process) {
 	struct fault fault = fault_struct();
 
 	seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
-	assert(reply_cap != CSPACE_NULL);
+	kassert(reply_cap != CSPACE_NULL);
 
 	struct page_table_entry* pte =
 		pd_getpage(process->vspace.pagetable, fault.vaddr);
@@ -471,13 +478,17 @@ void sos_handle_vmfault(struct process* process) {
 	/* got page from pagetable */
 	if (pte != NULL) {
 		trace(5);
+		lock(swaplock);
 		lock(pte->lock);
 		if (!vm_pageisloaded(pte)) {
 			trace(5);
 			int err = vm_swapin(pte);
 			if (err != VM_OKAY) {
 				dprintf(0, "Out of memory\n");
+				unlock(pte->lock);
+				unlock(swaplock);
 				process_kill(process, -1);
+				cspace_delete_cap(cur_cspace, reply_cap);
 				return;
 			}
 		} else if (vm_pageismarked(pte)) {
@@ -489,10 +500,14 @@ void sos_handle_vmfault(struct process* process) {
 			trace(5);
 			dprintf(0, "Invalid memory permissions for process\n");
 			dprint_fault(0, fault);
+			unlock(pte->lock);
+			unlock(swaplock);
 			process_kill(process, -1);
+			cspace_delete_cap(cur_cspace, reply_cap);
 			return;
 		}
 		unlock(pte->lock);
+		unlock(swaplock);
 		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
 		seL4_Send(reply_cap, reply);
 		trace(5);
@@ -509,6 +524,8 @@ void sos_handle_vmfault(struct process* process) {
 			dprintf(0, "Invalid memory access for process\n");
 			dprint_fault(0, fault);
 			process_kill(process, -1);
+			cspace_delete_cap(cur_cspace, reply_cap);
+			return;
 		}
 		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
 		seL4_Send(reply_cap, reply);
@@ -518,6 +535,8 @@ void sos_handle_vmfault(struct process* process) {
 		regions_print(process->vspace.regions);
 		printf("Unable to handle process fault\n");
 		process_kill(process, -1);
+		cspace_delete_cap(cur_cspace, reply_cap);
+		return;
 	}
 
 	cspace_free_slot(cur_cspace, reply_cap);
@@ -526,6 +545,7 @@ void sos_handle_vmfault(struct process* process) {
 static int vm_updatepage(struct page_table_entry* pte) {
 	kassert(pte != NULL);
 	kassert(pte->cap != 0);
+	kassert(lock_owned(pte->lock));
 	trace(4);
 	seL4_ARM_Page_Unmap(pte->cap);
 	seL4_Word permissions = 0;
@@ -568,25 +588,38 @@ int vm_init(void) {
 }
 
 int vm_swappage(void) {
-	lock(swaplock);
+	bool swapowned = lock_owned(swaplock);
+	if (!swapowned) {
+		lock(swaplock);
+	}
 	trace(4);
 	bool found = false;
 	if (clock_pointer == NULL) {
+		if (!swapowned) {
+			unlock(swaplock);
+		}
 		return VM_FAIL;
 	}
 	while (!found) {
 		if (clock_pointer->flags & PAGE_ACCESSED) {
 			trace(4);
 			clock_pointer->flags &= ~PAGE_ACCESSED;
+			lock(clock_pointer->lock);
 			vm_updatepage(clock_pointer);
+			unlock(clock_pointer->lock);
 			clock_pointer = clock_pointer->next;
 		} else {
 			break;
 		}
 	}
 	trace(4);
+	struct page_table_entry* pte = clock_pointer;
+	lock(pte->lock);
 	int ret = vm_swapout(clock_pointer);
-	unlock(swaplock);
+	unlock(pte->lock);
+	if (!swapowned) {
+		unlock(swaplock);
+	}
 	return ret;
 }
 

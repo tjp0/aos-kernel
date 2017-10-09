@@ -15,13 +15,12 @@
 #include "sos_coroutine.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
-#define verbose 0
+#define verbose 10
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
 
-extern char _cpio_archive[];
-
+#define ELF_HEADER_SIZE 4096
 struct semaphore* any_pid_exit_signal;
 
 void process_zombie_reap(struct process* process);
@@ -61,9 +60,20 @@ struct process* get_process(int32_t pid) {
 	return process_table[pid];
 }
 
+static void* test_cspace() {
+	trace(5);
+	cspace_t* croot = cspace_create(1);
+	trace(5);
+	cspace_destroy(croot);
+	trace(5);
+	croot = cspace_create(1);
+	trace(5);
+	cspace_destroy(croot);
+}
+
 struct process* process_create(char* app_name) {
 	int err;
-
+	test_cspace();
 	dprintf(0, "*** CREATING PROCESS (%s) ***\n", app_name);
 	// seL4_Word stack_addr;
 	// seL4_CPtr stack_cap;
@@ -73,7 +83,7 @@ struct process* process_create(char* app_name) {
 	seL4_UserContext context;
 
 	/* These required for loading program sections */
-	char* elf_base;
+	char* elf_base = NULL;
 	unsigned long elf_size;
 
 	struct process* process = malloc(sizeof(struct process));
@@ -142,30 +152,15 @@ struct process* process_create(char* app_name) {
 		goto err5;
 	}
 	trace(5);
-	/* Create an IPC buffer */
-	process->ipc_buffer_addr = ut_alloc(seL4_PageBits);
-	if (process->ipc_buffer_addr == 0) {
-		goto err6;
-	}
-
-	err = cspace_ut_retype_addr(process->ipc_buffer_addr,
-								seL4_ARM_SmallPageObject, seL4_PageBits,
-								cur_cspace, &process->ipc_buffer_cap);
-	if (err) {
-		ut_free(process->ipc_buffer_addr, seL4_PageBits);
-		goto err7;
-	}
-	trace(5);
 
 	/* Copy the fault endpoint to the user app to enable IPC */
 	user_ep_cap =
 		cspace_mint_cap(process->croot, cur_cspace, sos_syscall_cap,
 						seL4_AllRights, seL4_CapData_Badge_new(process->pid));
-	/* should be the first slot in the space, hack I know */
-	assert(user_ep_cap == 1);
-	assert(user_ep_cap == USER_EP_CAP);
 
-	dprintf(0, "*** IPC ALLOCATED ***\n");
+	if (user_ep_cap != USER_EP_CAP) {
+		goto err7_5;
+	}
 
 	/* Create a new TCB object */
 	process->tcb_addr = ut_alloc(seL4_TCBBits);
@@ -186,18 +181,8 @@ struct process* process_create(char* app_name) {
 	seL4_DebugNameThread(process->tcb_cap, app_name);
 #endif
 
-	/* parse the cpio image */
-	dprintf(1, "\nStarting \"%s\"...\n", app_name);
-	elf_base = cpio_get_file(_cpio_archive, app_name, &elf_size);
-	if (elf_base == NULL) {
-		trace(5);
-		goto err10;
-	}
-	trace(5);
-	/* load the elf image */
-
 	dprintf(0, "*** Loading ELF ***\n");
-	err = elf_load(process, elf_base);
+	err = elf_load(process, app_name);
 	if (err) {
 		goto err11;
 	}
@@ -220,6 +205,7 @@ struct process* process_create(char* app_name) {
 	if (ipc_pte == NULL) {
 		goto err13;
 	}
+	unlock(ipc_pte->lock);
 	/* Configure the TCB */
 	err = seL4_TCB_Configure(process->tcb_cap, user_ep_cap, 0,
 							 process->croot->root_cnode, seL4_NilData,
@@ -231,16 +217,18 @@ struct process* process_create(char* app_name) {
 	trace(5);
 	region_node* stack_region = process->vspace.regions->stack;
 
+	trace(5);
 	if (stack_region == NULL) {
 		goto err15;
 	}
 
+	trace(5);
 	/* Register the process in the process table */
 	process->status = PROCESS_ALIVE;
 	process_table[process->pid] = process;
 	/* Start the new process */
 	memset(&context, 0, sizeof(context));
-	context.pc = elf_getEntryPoint(elf_base);
+	context.pc = process->elfentry;
 	/* The stack pointer must be aligned for data access. ARM uses 8 byte stack
 	 * alignment
 	 */
@@ -265,8 +253,9 @@ err10:
 err9:
 err8:
 	trace(5);
-	cspace_delete_cap(cur_cspace, process->ipc_buffer_cap);
 	cspace_delete_cap(process->croot, user_ep_cap);
+err7_5:
+	trace(5);
 err7:
 err6:
 	trace(5);
@@ -338,24 +327,23 @@ void process_kill(struct process* process, uint32_t status) {
 	if (process->status == PROCESS_ZOMBIE) {
 		return;
 	}
-
+	process->status = PROCESS_ZOMBIE;
 	trace(1);
 	cspace_delete_cap(cur_cspace, process->tcb_cap);
 	trace(1);
+	pd_free(process->vspace.pagetable);
+	trace(1);
 	fd_table_close(&process->fds);
 	trace(1);
-	cspace_delete_cap(cur_cspace, process->ipc_buffer_cap);
-	trace(1);
-	pd_free(process->vspace.pagetable);
+	cspace_delete_cap(process->croot,
+					  USER_EP_CAP); /* The copied syscall IPC cap */
 	trace(1);
 	cspace_destroy(process->croot);
 	trace(1);
 	region_list_destroy(process->vspace.regions);
 	trace(1);
-	process->status = PROCESS_ZOMBIE;
 
 	process->tcb_cap = 0;
-	process->ipc_buffer_cap = 0;
 	process->vspace.pagetable = NULL;
 	process->croot = 0;
 	process->vspace.regions = NULL;

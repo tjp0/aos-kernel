@@ -7,22 +7,16 @@
 #include <sys/kassert.h>
 #include <utils/list.h>
 
-#define verbose 0
-
-#define UNLOCKED 0
-#define LOCKED 1
+#define verbose 4
 
 /* passed to the list library in foreach() */
 static int resume_coro(void *coro, void *var);
-
-/* returns true if (a == b) */
-static int cmp_equality(void *a, void *b);
 
 /* returns 1 if coro is locked, 0 if not locked. -1 on error */
 static int is_locked(struct lock *lock);
 
 struct lock {
-	bool locked;
+	coro locked;
 	list_t *coros_waiting; /* list of coros which are blocked on this lock */
 };
 
@@ -100,7 +94,7 @@ struct lock *lock_create(void) {
 		return NULL;
 	}
 
-	l->locked = UNLOCKED;
+	l->locked = NULL;
 	l->coros_waiting = malloc(sizeof(list_t));
 
 	if (!l->coros_waiting) {
@@ -113,8 +107,10 @@ struct lock *lock_create(void) {
 	return l;
 };
 
+bool lock_owned(struct lock *l) { return (l->locked == current_coro()); }
 void lock_destroy(struct lock *l) {
-	l->locked = UNLOCKED;
+	l->locked = NULL;
+	kassert(list_is_empty(l->coros_waiting));
 	list_remove_all(l->coros_waiting);
 	free(l->coros_waiting);
 	free(l);
@@ -122,25 +118,29 @@ void lock_destroy(struct lock *l) {
 
 int lock(struct lock *l) {
 	if (is_locked(l)) {
+		kassert(l->locked != current_coro());
 		trace(5);
+		dprintf(3, "Lock: %p waited on by stack %u\n", l, current_coro_num());
 		list_append(l->coros_waiting, current_coro());
 		yield(0);
 		trace(5);
 	}
 
-	kassert(l->locked == UNLOCKED);
+	dprintf(3, "Lock: %p locked by stack %u\n", l, current_coro_num());
 
-	l->locked = LOCKED;
+	kassert(l->locked == NULL);
+
+	l->locked = current_coro();
 
 	return 0;
 }
 
 /* lock becomes unlocked. resume the next coro available */
 int unlock(struct lock *l) {
-	l->locked = UNLOCKED;
-
+	kassert(l->locked == current_coro());
+	dprintf(3, "Lock: %p unlocked by stack %u\n", l, current_coro_num());
+	l->locked = NULL;
 	trace(5);
-
 	coro c = (coro)list_pop(l->coros_waiting);
 	dprintf(5, "current coro: %p, popped: %p\n", (void *)current_coro(),
 			(void *)c);
@@ -169,11 +169,12 @@ static int resume_coro(void *coro, void *var) {
 
 static int cmp_equality(void *a, void *b) { return !(a == b); }
 
-/* returns 1 if lock is locked, -1 on error */
+/* returns 1 if lock is locked, 0 on error */
 static int is_locked(struct lock *lock) {
-	if (!lock) {
-		return -1;
+	if (lock->locked == NULL) {
+		trace(5);
+		return 0;
 	}
-
-	return lock->locked;
+	trace(5);
+	return 1;
 }

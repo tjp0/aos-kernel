@@ -22,6 +22,6 @@ void plogf(const char* msg, ...) {
 	va_end(alist);
 }
 void _tracer(const char* file, const int line, const char* function) {
-	printf("trace: %d:<%s>:%u | %s\n", current_coro_num(), function, line,
+	printf("%u trace: <%s>:%u | %s\n", current_coro_num(), function, line,
 		   file);
 }
