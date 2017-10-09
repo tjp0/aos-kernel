@@ -8,13 +8,13 @@
  * @TAG(NICTA_BSD)
  */
 
+#include "elf.h"
 #include <assert.h>
 #include <cspace/cspace.h>
 #include <elf/elf.h>
+#include <fcntl.h>
 #include <sel4/sel4.h>
 #include <string.h>
-
-#include "elf.h"
 #include "region_manager.h"
 
 #include <copy.h>
@@ -24,7 +24,7 @@
 #include <ut_manager/ut.h>
 #include <vm.h>
 #include <vmem_layout.h>
-#define verbose 10
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -59,7 +59,6 @@ static int load_file_from_nfs(region_node *reg, struct vspace *vspace,
 	dprintf(3, "Loading %08x from ELF file over NFS\n", vaddr);
 	struct fd file;
 	struct nfs_elf_reference *ref = ((struct nfs_elf_reference *)reg->data);
-	nfs_dev_open(&file, ref->filename, FM_READ);
 
 	uint32_t region_start = reg->vaddr;
 	uint32_t memory_start = ref->memory_seg_start;
@@ -103,14 +102,15 @@ static int load_file_from_nfs(region_node *reg, struct vspace *vspace,
 			ref->filename, file_offset, vaddr, vaddr + first_offset,
 			amount_to_write);
 	if (amount_to_write != 0) {
+		nfs_dev_open(&file, ref->filename, O_RDONLY);
 		file.offset = file_offset;
 		if (file.dev_read(&file, vspace, vaddr + first_offset,
 						  amount_to_write) != amount_to_write) {
 			file.dev_close(&file);
 			return -1;
 		}
+		file.dev_close(&file);
 	}
-	file.dev_close(&file);
 	return 0;
 }
 static void clean_file_things(region_node *reg) { free(reg->data); }

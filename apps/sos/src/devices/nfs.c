@@ -1,6 +1,7 @@
 #include <autoconf.h>
 #include <clock/clock.h>
 #include <copy.h>
+#include <fcntl.h>
 #include <filetable.h>
 #include <lwip/ip_addr.h>
 #include <nfs/nfs.h>
@@ -396,7 +397,7 @@ int nfs_dev_open(struct fd* fd, char* name, int flags) {
 	trace(2);
 	struct nfs_lookup_callback_t* cb = yield(NULL);
 
-	if (cb->status == NFSERR_NOENT && (flags & FM_WRITE)) {
+	if (cb->status == NFSERR_NOENT && (flags & O_WRONLY || flags & O_RDWR)) {
 		// create the file
 
 		sattr_t sat = {
