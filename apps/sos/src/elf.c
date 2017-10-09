@@ -106,9 +106,11 @@ static int load_file_from_nfs(region_node *reg, struct vspace *vspace,
 		file.offset = file_offset;
 		if (file.dev_read(&file, vspace, vaddr + first_offset,
 						  amount_to_write) != amount_to_write) {
+			file.dev_close(&file);
 			return -1;
 		}
 	}
+	file.dev_close(&file);
 	return 0;
 }
 static void clean_file_things(region_node *reg) { free(reg->data); }
@@ -198,9 +200,11 @@ int elf_load(struct process *process, char *elf_path) {
 	if (fd.dev_read(&fd, NULL, (vaddr_t)elf_file, ELF_HEADER_SIZE) !=
 		ELF_HEADER_SIZE) {
 		free(elf_file);
+		fd.dev_close(&fd);
 		trace(5);
 		return -1;
 	}
+	fd.dev_close(&fd);
 	dprintf(2, "Elf headers read\n");
 	trace(5);
 	int num_headers;

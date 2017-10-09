@@ -10,7 +10,7 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 4
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
