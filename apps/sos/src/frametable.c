@@ -51,7 +51,6 @@ void sanity_check_frame_cell(struct frame* frame_cell);
 
 uint32_t frame_cache_tail = 0;
 void* frame_cache[FRAME_CACHE_SIZE];
-static inline void check_stack_addr(void);
 
 static inline struct frame* _paddr_to_frame_cell(seL4_Word paddr) {
 	// remove the sub page index of the address
@@ -191,7 +190,6 @@ void sanity_check_frame_cell(struct frame* frame_cell) {
 
 void sanity_check_frame_table(int id) {
 #ifdef HEAVY_VETTING
-	check_stack_addr();
 	dprintf(0, "Doing sanity check %d\n", id);
 	int i = 0;
 	for (i = 0; i < ft_numframes; i++) {
@@ -370,12 +368,6 @@ void ft_initialize(void) {
 	frame_test();
 #endif
 }
-static inline void check_stack_addr(void) {
-	volatile int puppies;
-	kassert((void*)&puppies > ((void*)KERNEL_STACK_VSTART) &&
-			((void*)&puppies < (void*)KERNEL_STACK_VEND));
-}
-
 void recursive_allocate(int counter);
 
 void frame_test() {
@@ -468,7 +460,6 @@ void frame_test() {
 #define NUM_PAGE_PER_HIT 100
 void recursive_allocate(int counter) {
 	// sanity_check_frame_table(0);
-	check_stack_addr();
 
 	int is_first = (counter == 0);
 	void** addrs = malloc(NUM_PAGE_PER_HIT * sizeof(void*));

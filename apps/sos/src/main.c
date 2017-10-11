@@ -35,6 +35,7 @@
 #include <devices/devices.h>
 #include <frametable.h>
 #include <globals.h>
+#include <libcoro.h>
 #include <process.h>
 #include <region_manager.h>
 #include <sys/kassert.h>
@@ -45,7 +46,6 @@
 #include <syscall/syscall_time.h>
 #include <utils/arith.h>
 #include <utils/endian.h>
-#include <utils/picoro.h>
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
@@ -423,28 +423,14 @@ static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	/* Initialise DMA memory */
 	err = dma_init(dma_addr, DMA_SIZE_BITS);
 	conditional_panic(err, "Failed to intiialise DMA memory\n");
-
-	/* Initialise the new kernel stack */
-	for (seL4_Word i = KERNEL_STACK_VSTART; i < KERNEL_STACK_VEND;
-		 i += PAGE_SIZE_4K) {
-		seL4_Word new_frame;
-		seL4_Word paddr = ut_alloc(seL4_PageBits);
-		conditional_panic(paddr == 0,
-						  "Not enough memory to allocate kernel stack");
-		int err = cspace_ut_retype_addr(paddr, seL4_ARM_SmallPageObject,
-										seL4_PageBits, cur_cspace, &new_frame);
-		conditional_panic(err, "Kernel stack failed to retype memory at init");
-		err = map_page(new_frame, seL4_CapInitThreadPD, i, seL4_AllRights,
-					   seL4_ARM_ExecuteNever | seL4_ARM_PageCacheable);
-		conditional_panic(err, "Kernel stack failed to map memory at init");
-	}
-	utils_run_on_stack((void*)KERNEL_STACK_VEND, _sos_late_init, NULL);
+	trace(5);
+	_sos_late_init(NULL);
 }
 
 /* After the stack is moved, finish initialization */
 static void* _sos_late_init(void* unusedarg) {
 	(void)unusedarg;
-
+	trace(5);
 	ft_initialize();
 
 	/* Initialiase other system compenents here */
@@ -459,7 +445,7 @@ static void* _sos_late_init(void* unusedarg) {
 	trace(5);
 	resume(coro_event_loop, (void*)sos_syscall_cap);
 	panic("We should not be here");
-	return NULL;
+	__builtin_unreachable();
 }
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {

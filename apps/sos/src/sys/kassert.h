@@ -1,7 +1,7 @@
 #pragma once
+#include <libcoro.h>
 #include <stdio.h>
 #include <sys/panic.h>
-#include <utils/picoro.h>
 #undef kassert
 #ifdef NDEBUG
 #define kassert(x) ((void)0)

@@ -3,11 +3,11 @@
 #include <copy.h>
 #include <fcntl.h>
 #include <filetable.h>
+#include <libcoro.h>
 #include <lwip/ip_addr.h>
 #include <nfs/nfs.h>
 #include <sos.h>
 #include <utils/math.h>
-#include <utils/picoro.h>
 #define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>

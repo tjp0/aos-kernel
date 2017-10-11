@@ -10,11 +10,11 @@
 
 #include "debug.h"
 #include <globals.h>
+#include <libcoro.h>
 #include <serial/serial.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include <utils/picoro.h>
 void plogf(const char* msg, ...) {
 	va_list alist;
 	va_start(alist, msg);

@@ -33,8 +33,8 @@ extern seL4_Word FRAME_TABLE_VEND;
 
 // /* Address where memory used for DMA starts getting mapped.
 //  * Do not use the address range between DMA_VSTART and DMA_VEND */
-extern seL4_Word DMA_VSTART;	 // (FRAME_TABLE_VEND + 0x1000)
-extern seL4_Word DMA_SIZE_BITS;  // (22)
+extern seL4_Word DMA_VSTART;  // (FRAME_TABLE_VEND + 0x1000)
+#define DMA_SIZE_BITS 22	  // (22)
 extern seL4_Word DMA_VEND;
 
 extern seL4_Word KERNEL_STACK_VSTART;

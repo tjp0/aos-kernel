@@ -1,8 +1,8 @@
 #pragma once
 
+#include <libcoro.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <utils/picoro.h>
 // Toggle semaphore
 // you create a semaphore
 // and other coroutines wait() until you signal()

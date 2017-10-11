@@ -3,10 +3,10 @@
 #include <clock/clock.h>
 #include <cspace/cspace.h>
 #include <filetable.h>
+#include <libcoro.h>
 #include <region_manager.h>
 #include <sel4/sel4.h>
-#include <utils/picoro.h>
-#define MAX_PROCESSES CONFIG_SOS_PROCESS_MAX 
+#define MAX_PROCESSES CONFIG_SOS_PROCESS_MAX
 
 extern struct semaphore* any_pid_exit_signal;
 

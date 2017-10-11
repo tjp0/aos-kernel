@@ -26,7 +26,6 @@ seL4_Word FRAME_TABLE_VSTART;
 seL4_Word FRAME_TABLE_SIZE_BITS;
 seL4_Word FRAME_TABLE_VEND;
 seL4_Word DMA_VSTART;
-seL4_Word DMA_SIZE_BITS;
 seL4_Word DMA_VEND;
 seL4_Word KERNEL_STACK_VSTART;
 seL4_Word KERNEL_STACK_VEND;
@@ -60,7 +59,6 @@ void initialise_vmem_layout(void) {
 	FRAME_TABLE_VEND =
 		((unsigned int)(FRAME_TABLE_VSTART + (1ull << FRAME_TABLE_SIZE_BITS)));
 	DMA_VSTART = (FRAME_TABLE_VEND + VADDR_PADDING);
-	DMA_SIZE_BITS = (24);
 	DMA_VEND = ((unsigned int)(DMA_VSTART + (1ull << DMA_SIZE_BITS)));
 
 	ft_numframes = (memory_range / PAGE_SIZE_4K) + 1;

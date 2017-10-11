@@ -11,8 +11,8 @@
 #ifndef _DEBUG_H_
 #define _DEBUG_H_
 
+#include <libcoro.h>
 #include <stdio.h>
-#include <utils/picoro.h>
 void plogf(const char* msg, ...);
 #define _dprintf(v, col, args...)               \
 	do {                                        \

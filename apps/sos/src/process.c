@@ -3,11 +3,11 @@
 #include <cpio/cpio.h>
 #include <devices/devices.h>
 #include <elf/elf.h>
+#include <libcoro.h>
 #include <mapping.h>
 #include <process.h>
 #include <sel4/sel4.h>
 #include <string.h>
-#include <utils/picoro.h>
 #include <vm.h>
 #include "cpio.h"
 #include "elf.h"

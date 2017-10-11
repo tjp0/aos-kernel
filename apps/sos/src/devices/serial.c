@@ -1,9 +1,9 @@
 #include <copy.h>
 #include <filetable.h>
 #include <globals.h>
+#include <libcoro.h>
 #include <process.h>
 #include <sos.h>
-#include <utils/picoro.h>
 #include <utils/ringbuffer.h>
 #define verbose 0
 #include <sys/debug.h>
