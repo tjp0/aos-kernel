@@ -25,6 +25,8 @@ const p_region_t BOOT_RODATA avail_p_regs[] = {
 #ifdef CONFIG_BENCHMARK
     /* 1MB stolen for logging */
     { /* .start = */ 0x10000000, /* .end = */ 0x2fd00000 }
+#elif CONFIG_DEBUG_IMX6_LIMIT_RAM
+	{ /* .start = */ 0x10000000, /* .end = */ 0x10000000+CONFIG_DEBUG_IMX6_LIMIT_RAM_AMOUNT }
 #else
     { /* .start = */ 0x10000000, /* .end = */ 0x50000000 }
 #endif /* CONFIG_BENCHMARK */

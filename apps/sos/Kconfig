@@ -54,6 +54,16 @@ config SOS_STARTUP_APP
     depends on APP_SOS
     default "tty_test"
 
+config SOS_PROCESS_MAX_STACK
+	int "The maximum size of a process's stack (bytes)"
+	depends on APP_SOS
+	default 67108864
+
+config SOS_PROCESS_MAX
+	int "The maximum number of supported processes"
+	depends on APP_SOS
+	default 32
+
 config SOS_DEBUG_NETWORK
 	bool "Enable network debugging"
 	depends on APP_SOS
@@ -63,3 +73,8 @@ config SOS_DEBUG_NETWORK_PORT
 	int "Debug port"
 	depends on SOS_DEBUG_NETWORK
 	default 6000
+
+config SOS_DEBUG_TESTS
+	depends on APP_SOS
+	bool "SOS Tests"
+	default n

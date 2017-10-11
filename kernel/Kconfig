@@ -429,6 +429,20 @@ menu "Build Options"
             adjacent cache line prefetcher, the DCU prefetcher and the DCU IP prefetcher.
             Currently unimplemented on other platforms.
 
+	config DEBUG_IMX6_LIMIT_RAM
+		bool "Limit physical memory"
+		depends on PLAT_IMX6
+		default n
+		help
+			Limit the amount of physical memory presented to the system
+
+	config DEBUG_IMX6_LIMIT_RAM_AMOUNT
+		int "RAM limit (bytes)"
+		depends on DEBUG_IMX6_LIMIT_RAM
+		default 8388608
+		help
+			The amount of ram to present to the system when the limiter is enabled.
+			Defaults to 8MB
 endmenu
 
 menu "Boot options"

@@ -1,3 +1,4 @@
+#include <autoconf.h>
 #include <cspace/cspace.h>
 #include <frametable.h>
 #include <mapping.h>
@@ -16,9 +17,6 @@
 #define FRAME_CACHE_HIGH_WATER 20
 
 #define FRAME_RESERVED 90000
-
-// For demo purposes, this is approx 480k of userland frames
-#define FRAME_TEST_MAX 100
 
 #define DEBUG_VALUE 13210387
 
@@ -208,9 +206,6 @@ int frame_physical_alloc(void** vaddr) {
 	if (ft_numframes - frame_count < FRAME_RESERVED) {
 		return 1;
 	}
-	if (frame_count > FRAME_TEST_MAX && FRAME_TEST_MAX != 0) {
-		return 1;
-	}
 
 	seL4_Word new_frame_addr = ut_alloc(seL4_PageBits);
 	kassert(paddr_to_frame_cell(new_frame_addr) < &frame_table[ft_numframes]);
@@ -370,6 +365,10 @@ void ft_initialize(void) {
 	kassert((void*)&frame_table[ft_numframes] <= (void*)FRAME_TABLE_VEND);
 
 	sanity_check_frame_table(2020);
+
+#ifdef CONFIG_SOS_DEBUG_TESTS
+	frame_test();
+#endif
 }
 static inline void check_stack_addr(void) {
 	volatile int puppies;
