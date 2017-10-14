@@ -1,5 +1,6 @@
 #include <copy.h>
 #include <devices/devices.h>
+#include <fcntl.h>
 #include <globals.h>
 #include <process.h>
 #include <sos.h>
@@ -60,6 +61,11 @@ int syscall_stat(struct process* process, vaddr_t filebuf, vaddr_t statbuf) {
 int syscall_open(struct process* process, vaddr_t buf, int flags) {
 	trace(5);
 	char filename[N_NAME + 1];
+
+	if (flags != O_RDONLY && flags != O_WRONLY && flags != O_RDWR) {
+		return -1;
+	}
+
 	if (copy_vspace2sos(buf, filename, &process->vspace, N_NAME,
 						COPY_RETURNWRITTEN) < 0) {
 		trace(5);
