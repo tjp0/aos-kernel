@@ -37,7 +37,7 @@
 #include "mapping.h"
 #include "ut_manager/ut.h"
 
-#define verbose 0
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -73,8 +73,9 @@ lwip_iface_t *lwip_iface;
 
 static void *sos_map_device(void *cookie, uintptr_t addr, size_t size,
 							int cached, ps_mem_flags_t flags) {
+	trace(5);
 	(void)cookie;
-	return map_device((void *)addr, size);
+	return map_device("Ethernet Ctrl", (void *)addr, size);
 }
 
 static void sos_unmap_device(void *cookie, void *addr, size_t size) {}
@@ -151,7 +152,7 @@ static void network_prime_arp(struct ip_addr *gw) {
 void network_init(seL4_CPtr interrupt_ep) {
 	struct ip_addr netmask, ipaddr, gw;
 	int err;
-
+	trace(5);
 	ps_io_mapper_t io_mapper = {.cookie = NULL,
 								.io_map_fn = sos_map_device,
 								.io_unmap_fn = sos_unmap_device};
@@ -178,18 +179,20 @@ void network_init(seL4_CPtr interrupt_ep) {
 	printf("      Network Mask: %s\n", ipaddr_ntoa(&netmask));
 	printf("\n");
 
+	trace(5);
 	/* low level initialisation */
 	lwip_iface = ethif_new_lwip_driver(io_ops, NULL, ethif_imx6_init, NULL);
 	assert(lwip_iface);
 	dprintf(0, "lwip_iface paddr = %p, addr of = %p\n", lwip_iface,
 			&lwip_iface);
-
+	trace(5);
 	/* Initialise IRQS */
 	_net_irqs[0].irq = ETHERNET_IRQ;
 	_net_irqs[0].cap = enable_irq(_net_irqs[0].irq, _irq_ep);
 
 	/* Setup the network interface */
 	lwip_init();
+	trace(5);
 	struct netif *netif = malloc(sizeof(*netif));
 	assert(netif);
 	lwip_iface->netif =
@@ -198,7 +201,7 @@ void network_init(seL4_CPtr interrupt_ep) {
 	assert(lwip_iface->netif != NULL);
 	netif_set_up(lwip_iface->netif);
 	netif_set_default(lwip_iface->netif);
-
+	trace(5);
 	/*
 	 * LWIP does not queue packets while waiting for an ARP response
 	 * Generally this is okay as we block waiting for a response to our
@@ -206,7 +209,7 @@ void network_init(seL4_CPtr interrupt_ep) {
 	 * table is cheap and can save a lot of heart ache
 	 */
 	network_prime_arp(&gw);
-
+	trace(5);
 	/* initialise and mount NFS */
 	if (strlen(SOS_NFS_DIR)) {
 		/* Initialise NFS */

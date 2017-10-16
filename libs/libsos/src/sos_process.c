@@ -24,3 +24,8 @@ pid_t sos_my_id(void) { return SYSCALL_ARG0(SOS_SYSCALL_PROCESS_MY_ID); }
 int sos_process_status(sos_process_t *processes, unsigned max) {
 	return SYSCALL_ARG2(SOS_SYSCALL_PROCESS_STATUS, (uint32_t)processes, max);
 }
+
+void sos_process_debug(pid_t pid) {
+	SYSCALL_ARG1(SOS_SYSCALL_PROCESS_DEBUG, pid);
+	return;
+}

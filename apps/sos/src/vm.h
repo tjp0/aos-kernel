@@ -18,8 +18,10 @@
 #define VM_FAIL -2
 #define VM_OKAY 0
 
+#define PAGE_NOCACHE (1 << 6)
 /* The flag that defines if the page has been recently accessed */
 #define PAGE_ZOMBIE (1 << 5)
+/* Pinned pages are allocated immediately and always kept in memory */
 #define PAGE_PINNED (1 << 4)
 #define PAGE_ACCESSED (1 << 3)
 #define PAGE_EXECUTABLE (1 << 2)
@@ -56,15 +58,21 @@ struct page_directory {
 	uint32_t num_ptes;
 };
 
+/* Creates and fills a page directory from SOS's bootinfo */
+struct page_directory* pd_createSOS(seL4_ARM_PageDirectory seL4_pd,
+									const seL4_BootInfo* boot);
+
 struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd);
 void pd_free(struct page_directory* pd);
+void pte_free(struct page_table_entry* pte);
 
 int vm_missingpage(struct vspace* vspace, vaddr_t address);
 
 struct page_table_entry* pd_getpage(struct page_directory* pd, vaddr_t address);
 
 struct page_table_entry* sos_map_page(struct page_directory* pd,
-									  vaddr_t address, uint8_t permissions);
+									  vaddr_t address, uint8_t permissions,
+									  seL4_ARM_Page pte_cap);
 
 void sos_handle_vmfault(struct process* process);
 

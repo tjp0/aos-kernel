@@ -22,12 +22,14 @@
 #include <cspace/cspace.h>
 #include <dma.h>
 #include <mapping.h>
+#include <process.h>
 #include <sel4/types.h>
 #include <ut_manager/ut.h>
+#include <vm.h>
 #include <vmem_layout.h>
-
-#define verbose 5
+#define verbose 1
 #include <sys/debug.h>
+#include <sys/kassert.h>
 #include <sys/panic.h>
 
 #define DMA_SIZE (_dma_pend - _dma_pstart)
@@ -48,26 +50,29 @@ static seL4_Word _dma_pend = 0;
 static seL4_Word _dma_pnext = 0;
 
 static inline void _dma_fill(seL4_Word pstart, seL4_Word pend, int cached) {
+	trace(5);
 	seL4_CPtr *caps = &_dma_caps[(pstart - _dma_pstart) >> seL4_PageBits];
-	seL4_ARM_VMAttributes vm_attr = 0;
+	uint32_t perms = PAGE_PINNED | PAGE_EXECUTABLE | PAGE_READABLE |
+					 PAGE_WRITABLE | PAGE_NOCACHE;
 	int err;
 
 	if (cached) {
-		vm_attr = seL4_ARM_Default_VMAttributes;
-		vm_attr = 0 /* TODO L2CC currently not controlled by kernel */;
+		/* L2CC currently not controlled by kernel ? */
+		perms |= PAGE_NOCACHE;
 	}
 
 	pstart -= PAGE_OFFSET(pstart);
 	while (pstart < pend) {
+		trace(5);
 		if (*caps == seL4_CapNull) {
 			/* Create the frame cap */
 			err = cspace_ut_retype_addr(pstart, seL4_ARM_SmallPageObject,
 										seL4_PageBits, cur_cspace, caps);
 			assert(!err);
 			/* Map in the frame */
-			err = map_page(*caps, seL4_CapInitThreadPD, VIRT(pstart),
-						   seL4_AllRights, vm_attr);
-			assert(!err);
+			struct page_table_entry *pte = sos_map_page(
+				sos_process.vspace.pagetable, VIRT(pstart), perms, *caps);
+			kassert(pte != NULL);
 		}
 		/* Next */
 		pstart += (1 << seL4_PageBits);
@@ -76,6 +81,7 @@ static inline void _dma_fill(seL4_Word pstart, seL4_Word pend, int cached) {
 }
 
 int dma_init(seL4_Word dma_paddr_start, int sizebits) {
+	trace(5);
 	assert(_dma_pstart == 0);
 
 	_dma_pstart = _dma_pnext = dma_paddr_start;
@@ -89,6 +95,7 @@ int dma_init(seL4_Word dma_paddr_start, int sizebits) {
 
 void *sos_dma_malloc(void *cookie, size_t size, int align, int cached,
 					 ps_mem_flags_t flags) {
+	trace(5);
 	static int alloc_cached = 0;
 	void *dma_addr;
 	(void)cookie;

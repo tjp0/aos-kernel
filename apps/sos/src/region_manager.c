@@ -13,6 +13,7 @@
 
 #define verbose 5
 #include <sys/debug.h>
+#include <sys/kassert.h>
 
 /* Leave a 4K page minimum between expanding regions */
 #define REGION_SAFETY PAGE_SIZE_4K
@@ -46,7 +47,7 @@ static int create_initial_regions(region_list* reg_list) {
 }
 
 void region_list_destroy(region_list* reg_list) {
-	assert(reg_list != NULL);
+	kassert(reg_list != NULL);
 	region_node* node = reg_list->start;
 	while (node) {
 		region_node* next = node->next;
@@ -64,6 +65,8 @@ int init_region_list(region_list** reg_list) {
 
 	list->start = NULL;
 	list->heap = NULL;
+	list->stack = NULL;
+	list->ipc_buffer = NULL;
 	int err = create_initial_regions(list);
 
 	if (err == REGION_FAIL) {
@@ -77,7 +80,7 @@ int init_region_list(region_list** reg_list) {
 
 /* Finds the place in the sorted linked list to insert a new chunk at vaddr */
 static region_node* findspot(region_node* start, vaddr_t vaddr) {
-	assert(start != NULL);
+	kassert(start != NULL);
 
 	while (start->next != NULL) {
 		if (start->next->vaddr > vaddr) return start;
@@ -122,9 +125,12 @@ region_node* make_region_node(vaddr_t addr, unsigned int size,
 region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 						unsigned int perm, void* load_page, void* clean_page,
 						void* data) {
-	assert(IS_ALIGNED_4K(addr));
-	assert(IS_ALIGNED_4K(size));
-	assert(reg_list != NULL);
+	kassert(IS_ALIGNED_4K(addr));
+	kassert(reg_list != NULL);
+
+	if (!IS_ALIGNED_4K(size)) {
+		size = PAGE_ALIGN_4K(size + PAGE_SIZE_4K - 1);
+	}
 
 	region_node* cur = reg_list->start;
 
@@ -186,7 +192,7 @@ int expand_left(region_node* node, vaddr_t address) {
 
 // Probably to expand the heap
 int expand_right(region_node* node, uint32_t size) {
-	assert(IS_ALIGNED_4K(size));
+	kassert(IS_ALIGNED_4K(size));
 	region_node* neighbor = node->next;
 
 	if (node->vaddr + node->size + size > neighbor->vaddr - REGION_SAFETY) {
@@ -203,9 +209,9 @@ int in_stack_region(region_node* node, vaddr_t vaddr) {
 /* Call this after the elf has been loaded to place the heap effectively */
 region_node* create_heap(region_list* region_list) {
 	region_node* stack = region_list->stack;
-	assert(stack != NULL);
+	kassert(stack != NULL);
 	region_node* prev = stack->prev;
-	assert(prev != NULL);
+	kassert(prev != NULL);
 
 	vaddr_t base_addr = prev->vaddr + prev->size + REGION_SAFETY;
 
@@ -219,12 +225,40 @@ region_node* create_heap(region_list* region_list) {
 	heap->name = "HEAP";
 	return heap;
 }
+/* This should be called after the heap has been created */
+region_node* create_mmap(region_list* region_list, uint32_t size,
+						 uint32_t perm) {
+	region_node* stack = region_list->stack;
+	kassert(stack != NULL);
+	size = PAGE_ALIGN_4K(size + PAGE_SIZE_4K - 1);
+	uint32_t capacity = 0;
+	region_node* selected = stack;
+	while (selected && capacity < size + REGION_SAFETY * 2) {
+		capacity =
+			selected->vaddr - (selected->prev->vaddr + selected->prev->size);
+		selected = selected->prev;
+	}
+	if (!selected) {
+		return NULL;
+	}
+
+	vaddr_t region_start = selected->vaddr + capacity - REGION_SAFETY - size;
+	dprintf(2, "Creating new region at 0x%08x to 0x%08x\n", region_start,
+			region_start + size);
+	region_node* ret =
+		add_region(region_list, region_start, size, perm, NULL, NULL, NULL);
+	if (!ret) {
+		return NULL;
+	}
+	ret->name = "MMAP";
+	return ret;
+}
 
 void regions_print(region_list* regions) {
 	region_node* cur = regions->start;
 	// printf("----------------------\n");
 	while (cur) {
-		printf("0x%08x -> 0x%08x: perm: %08u, | %s", cur->vaddr,
+		printf("0x%08x -> 0x%08x: perm: %08u, | %-20s|", cur->vaddr,
 			   cur->vaddr + cur->size, cur->perm, cur->name);
 		if (cur->perm & PAGE_WRITABLE) {
 			printf(" WRITABLE");
@@ -237,6 +271,9 @@ void regions_print(region_list* regions) {
 		}
 		if (cur->perm & PAGE_PINNED) {
 			printf(" PINNED");
+		}
+		if (cur->perm & PAGE_NOCACHE) {
+			printf(" NOCACHE");
 		}
 		printf("\n");
 
@@ -251,4 +288,24 @@ void regions_print(region_list* regions) {
 		cur = cur->next;
 	}
 	// printf("########################\n");
+}
+
+int region_remove(region_list* regions, struct process* process,
+				  vaddr_t vaddr) {
+	region_node* node = findspot(regions->start, vaddr);
+	if (!node) {
+		return VM_FAIL;
+	}
+	for (vaddr_t vaddr = vaddr; vaddr + vaddr < node->size;
+		 vaddr += PAGE_SIZE_4K) {
+		struct page_table_entry* pte =
+			pd_getpage(process->vspace.pagetable, vaddr);
+		if (pte) {
+			pte_free(pte);
+		}
+	}
+	node->prev->next = node->next;
+	node->next->prev = node->prev;
+	free(node);
+	return 0;
 }

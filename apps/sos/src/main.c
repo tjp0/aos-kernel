@@ -49,7 +49,7 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 3
+#define verbose 2
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -80,7 +80,7 @@ extern char _cpio_archive[];
 
 const seL4_BootInfo* _boot_info;
 
-struct serial* global_serial;
+struct process sos_process;
 
 seL4_CPtr sos_syscall_cap;
 seL4_CPtr sos_interrupt_cap;
@@ -129,9 +129,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		2, "SYSCALL: %d from proc (%s:%u) with args: (%08x %08x %08x %08x)\n",
 		syscall_number, process->name, process->pid, arg1, arg2, arg3, arg4);
 	switch (syscall_number) {
-		case SOS_SYSCALL_SERIALWRITE: {
-			err = syscall_serialwrite(process, arg1, arg2, &ret1);
-		} break;
+		//		case SOS_SYSCALL_SERIALWRITE: {
+		//			err = syscall_serialwrite(process, arg1, arg2, &ret1);
+		//		} break;
 		case SOS_SYSCALL_SBRK: {
 			err = syscall_sbrk(process, arg1);
 		} break;
@@ -163,11 +163,8 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		case SOS_SYSCALL_PROCESS_CREATE: {
 			err = syscall_process_create(process, arg1);
 		} break;
-		/* This syscall should never return */
 		case SOS_SYSCALL_EXIT: {
 			err = syscall_process_exit(process, arg1);
-			cspace_free_slot(cur_cspace, reply_cap);
-			return;
 		} break;
 		case SOS_SYSCALL_PROCESS_MY_ID: {
 			err = syscall_process_my_id(process);
@@ -181,6 +178,15 @@ void handle_syscall(seL4_Word badge, int num_args) {
 		case SOS_SYSCALL_PROCESS_WAIT: {
 			err = syscall_process_wait(process, arg1);
 		} break;
+		case SOS_SYSCALL_MMAP: {
+			err = syscall_mmap(process, arg1, arg2);
+		} break;
+		case SOS_SYSCALL_MUNMAP: {
+			err = syscall_munmap(process, arg1);
+		} break;
+		case SOS_SYSCALL_PROCESS_DEBUG: {
+			err = syscall_process_debug(process, arg1);
+		} break;
 		default: {
 			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
 				   __func__, syscall_number);
@@ -190,6 +196,13 @@ void handle_syscall(seL4_Word badge, int num_args) {
 			return;
 		}
 	}
+	/* Process is dead, and there's nothing to return to
+	 * so just free the reply cap */
+	if (process->status != PROCESS_ALIVE) {
+		cspace_free_slot(cur_cspace, reply_cap);
+		return;
+	}
+
 	dprintf(2,
 			"SYSCALL RET: %d to proc (%s:%u) with values: (err: %08x, args "
 			"%08x %08x %08x)\n",
@@ -400,10 +413,11 @@ static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 
 	conditional_panic(err, "Failed to initialise Untyped Table\n");
 
-	initialise_vmem_layout();
+	sos_process.name = "[SOS]";
+	process_table[0] = &sos_process;
+
 	if (verbose > 0) {
 		print_bootinfo(_boot_info);
-		print_vmem_layout();
 	}
 	/* DMA uses a large amount of memory that will never be freed */
 	dma_addr = ut_steal_mem(DMA_SIZE_BITS);
@@ -420,10 +434,17 @@ static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 									 free);
 	conditional_panic(err, "Failed to initialise the c space\n");
 
+	/* Initialise SOS's memory manager */
+	initialize_sos_memory(seL4_CapInitThreadPD, _boot_info);
+
 	/* Initialise DMA memory */
 	err = dma_init(dma_addr, DMA_SIZE_BITS);
 	conditional_panic(err, "Failed to intiialise DMA memory\n");
 	trace(5);
+
+	if (verbose > 0) {
+		print_vmem_layout();
+	}
 	_sos_late_init(NULL);
 }
 
@@ -433,6 +454,7 @@ static void* _sos_late_init(void* unusedarg) {
 	trace(5);
 	ft_initialize();
 
+	conditional_panic(vm_init() < 0, "VM init failed");
 	/* Initialiase other system compenents here */
 	_sos_ipc_init(&sos_syscall_cap, &sos_interrupt_cap);
 	/* Main will yield at some point, at which point we'll start the main event
@@ -486,7 +508,6 @@ static void* sos_main(void* na) {
 	trace(5);
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
 	trace(5);
-	conditional_panic(vm_init() < 0, "VM init failed");
 	trace(5);
 	conditional_panic(swap_init() < 0, "Swap init failed");
 	trace(5);

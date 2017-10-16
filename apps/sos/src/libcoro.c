@@ -1,13 +1,16 @@
 #include "libcoro.h"
+#include <process.h>
 #include <setjmp.h>
 #include <stdlib.h>
+#include <syscall/syscall_memory.h>
 #include <utils/arith.h>
 #include <utils/stack.h>
-#define verbose 3
+#include <vm.h>
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #define STACK_ALIGNMENT 8 /* Stacks must be aligned to 8 bytes */
-#define STACK_SIZE 8192 * 4
+#define STACK_SIZE 4096 * 3
 
 /* Ideally each coroutine struct should be located
  * in it's own mapped area for debugging in the event
@@ -105,7 +108,11 @@ struct coroutine* coroutine(void* function(void* arg)) {
 	struct coroutine* ret_co = NULL;
 	if (idle == NULL) {
 		dprintf(2, "Allocating new coroutine: %d\n", counter);
-		void* stack = malloc(STACK_SIZE);
+		void* stack =
+			(void*)syscall_mmap(&sos_process, STACK_SIZE,
+								PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED);
+		trace(5);
+		dprintf(5, "Stack is at %p\n", stack);
 		if (stack == NULL) {
 			trace(5);
 			return NULL;
