@@ -5,12 +5,12 @@
  * * * * * * * * * * * * * */
 
 #include "region_manager.h"
+#include <autoconf.h>
 #include <sel4/sel4.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <vm.h>
 #include <vmem_layout.h>
-
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/kassert.h>
@@ -32,8 +32,9 @@ static int create_initial_regions(region_list* reg_list) {
 		return REGION_FAIL;
 	}
 
+	const uint32_t stacksize = CONFIG_SOS_PROCESS_MAX_STACK;
 	region_node* stack =
-		add_region(reg_list, PROCESS_TOP - PAGE_SIZE_4K, PAGE_SIZE_4K,
+		add_region(reg_list, PROCESS_TOP - stacksize, stacksize,
 				   PAGE_READABLE | PAGE_WRITABLE, 0, 0, 0);
 	if (stack == NULL) {
 		return REGION_FAIL;

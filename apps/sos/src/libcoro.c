@@ -119,6 +119,9 @@ struct coroutine* coroutine_create(struct process* process) {
 		return NULL;
 	}
 
+	region_node* node = find_region(sos_process.vspace.regions, (vaddr_t)stack);
+	node->name = process->name;
+
 	struct coroutine* ret_co = (struct coroutine*)ALIGN_DOWN(
 		(uint32_t)stack + STACK_SIZE - sizeof(struct coroutine), 8);
 	ret_co->debug = DEBUG_VAL;

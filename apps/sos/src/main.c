@@ -290,6 +290,9 @@ static void* handle_process_event(void* event_ptr) {
 		handle_syscall(process);
 	}
 
+	if (process->dying == true) {
+		process_kill(process, 0);
+	}
 	// handle the cases when process dies
 	// e.g you call the exit syscall and the
 	// process pointer is no longer valid

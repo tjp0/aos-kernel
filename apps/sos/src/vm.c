@@ -338,15 +338,6 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 	 * creating a new page */
 
 	region_node* region = find_region(vspace->regions, address);
-
-	if (region == NULL && in_stack_region(vspace->regions->stack, address)) {
-		int err = expand_left(vspace->regions->stack, address);
-		if (err != REGION_GOOD) {
-			return VM_FAIL;
-		}
-		region = vspace->regions->stack;
-	}
-
 	if (region == NULL) {
 		trace(5);
 		dprintf(0, "Failed to find region for missing page\n");

@@ -301,6 +301,12 @@ void process_coredump(struct process* process) {
 	}
 	printf("Process dumped\n");
 }
+void process_signal_kill(struct process* process) {
+	process->dying = true;
+	if (coro_idle(process->coroutine)) {
+		process_kill(process, 0);
+	}
+}
 void process_kill(struct process* process, uint32_t status) {
 	kassert(process != NULL);
 	trace(1);
@@ -308,16 +314,6 @@ void process_kill(struct process* process, uint32_t status) {
 		return;
 	}
 
-	/* wait until a syscall is finished (if needed), unless it is called
-	 * exit */
-	if (coro_idle(process->coroutine) == false) {
-		wait(process->event_finished_syscall);
-	}
-
-	/* While we waited, something else might have killed us */
-	if (process->status == PROCESS_ZOMBIE) {
-		return;
-	}
 	process->status = PROCESS_ZOMBIE;
 	trace(1);
 	cspace_delete_cap(cur_cspace, process->tcb_cap);

@@ -95,9 +95,8 @@ uint32_t syscall_process_kill(struct process* process, uint32_t pid) {
 	if (!process_to_kill) {
 		return -1;
 	}
-	uint32_t status = -1;
 	dprintf(0, "Killing process %d \n", process_to_kill);
-	process_kill(process_to_kill, status);
+	process_signal_kill(process_to_kill);
 	return 0;
 }
 
