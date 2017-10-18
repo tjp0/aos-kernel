@@ -190,7 +190,6 @@ struct process* process_create(char* app_name) {
 		trace(5);
 		goto err13;
 	}
-	unlock(ipc_pte->lock);
 	/* Configure the TCB */
 	err = seL4_TCB_Configure(process->tcb_cap, user_ep_cap, 0,
 							 process->croot->root_cnode, seL4_NilData,
@@ -304,6 +303,8 @@ void process_coredump(struct process* process) {
 void process_signal_kill(struct process* process) {
 	process->dying = true;
 	if (coro_idle(process->coroutine)) {
+		dprintf(3, "Process <%s:%u> is idle, so killing now\n", process->name,
+				process->pid);
 		process_kill(process, 0);
 	}
 }
@@ -334,6 +335,12 @@ void process_kill(struct process* process, uint32_t status) {
 	process->vspace.pagetable = NULL;
 	process->croot = 0;
 	process->vspace.regions = NULL;
+	/* If we're someone else, we can easily cleanup the coro
+	 * otherwise leave it to the main event loop to perform the cleanup */
+	if (process->coroutine != current_coro()) {
+		trace(1);
+		coroutine_free(process->coroutine);
+	}
 	trace(1);
 	// Signal that *this* process has ended
 	signal(process->event_exited, (void*)process->pid);
@@ -348,7 +355,6 @@ void process_zombie_reap(struct process* process) {
 	semaphore_destroy(process->event_finished_syscall);
 	semaphore_destroy(process->event_exited);
 	process_table[process->pid] = NULL;
-	coroutine_free(process->coroutine);
 	free(process->name);
 	free(process);
 }

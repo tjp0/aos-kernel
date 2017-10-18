@@ -12,7 +12,7 @@ struct semaphore;
 
 int coro_sleep(uint64_t delay);
 
-struct lock *lock_create(void);
+struct lock *lock_create(const char *string);
 void lock_destroy(struct lock *l);
 int lock(struct lock *lock);
 int unlock(struct lock *lock);

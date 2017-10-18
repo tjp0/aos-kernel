@@ -7,7 +7,7 @@
 #include <sys/kassert.h>
 #include <utils/list.h>
 
-#define verbose 0
+#define verbose 8
 
 /* passed to the list library in foreach() */
 static int resume_coro(void *coro, void *var);
@@ -16,6 +16,7 @@ static int resume_coro(void *coro, void *var);
 static int is_locked(struct lock *lock);
 
 struct lock {
+	const char *name;
 	coro locked;
 	list_t *coros_waiting; /* list of coros which are blocked on this lock */
 };
@@ -86,13 +87,15 @@ void *wait(struct semaphore *s) {
  */
 
 /* returns NULL on error */
-struct lock *lock_create(void) {
+struct lock *lock_create(const char *name) {
 	/* create new lock */
 	struct lock *l = malloc(sizeof(struct lock));
 
 	if (!l) {
 		return NULL;
 	}
+	/* For debugging */
+	l->name = name;
 
 	l->locked = NULL;
 	l->coros_waiting = malloc(sizeof(list_t));
@@ -121,15 +124,15 @@ int lock(struct lock *l) {
 	if (is_locked(l)) {
 		kassert(l->locked != current_coro());
 		trace(5);
-		dprintf(3, "Lock: %p waited on by <%s:%u>\n", l,
+		dprintf(3, "Lock: %s:%p waited on by <%s:%u>\n", l->name, l,
 				current_process()->name, current_process()->pid);
 		list_append(l->coros_waiting, current_coro());
 		yield(0);
 		trace(5);
 	}
 
-	dprintf(3, "Lock: %p locked by stack <%s:%u>\n", l, current_process()->name,
-			current_process()->pid);
+	dprintf(3, "Lock: %s:%p locked by stack <%s:%u>\n", l->name, l,
+			current_process()->name, current_process()->pid);
 
 	kassert(l->locked == NULL);
 
@@ -141,7 +144,7 @@ int lock(struct lock *l) {
 /* lock becomes unlocked. resume the next coro available */
 int unlock(struct lock *l) {
 	kassert(l->locked == current_coro());
-	dprintf(3, "Lock: %p unlocked by stack <%s:%u>\n", l,
+	dprintf(3, "Lock: %s:%p unlocked by stack <%s:%u>\n", l->name, l,
 			current_process()->name, current_process()->pid);
 	l->locked = NULL;
 	trace(5);

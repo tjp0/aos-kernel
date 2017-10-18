@@ -68,7 +68,6 @@ uint32_t syscall_mmap(struct process* process, uint32_t size,
 				region_remove(process->vspace.regions, process, vaddr);
 				return -1;
 			}
-			unlock(pte->lock);
 		}
 	}
 	trace(5);

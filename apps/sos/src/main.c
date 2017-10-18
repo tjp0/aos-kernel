@@ -49,7 +49,7 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 2
+#define verbose 4
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -243,19 +243,18 @@ static void* handle_event(void* e) {
 	struct event* event = (struct event*)e;
 	seL4_Word badge = event->badge;
 
-	dprintf(3, "SOS activated\n");
 	if (badge & IRQ_EP_BADGE) {
 		/* Interrupt */
 		if (badge & IRQ_BADGE_NETWORK) {
-			dprintf(3, "Network IRQ\n");
+			dprintf(4, "Network IRQ\n");
 			network_irq();
 		}
 		if (badge & IRQ_BADGE_EPIT1) {
-			dprintf(3, "Timer IRQ\n");
+			dprintf(4, "Timer IRQ\n");
 			timer_interrupt_epit1();
 		}
 		if (badge & IRQ_BADGE_EPIT2) {
-			dprintf(3, "Timer IRQ\n");
+			dprintf(4, "Timer IRQ\n");
 			timer_interrupt_epit2();
 		}
 
@@ -265,9 +264,14 @@ static void* handle_event(void* e) {
 			/* If this was a syscall by a process, run it in that
 			 * process's coroutine */
 			coro c = process->coroutine;
+			kassert(process->coroutine);
 			kassert(coro_idle(c));
 			coroutine_start(c, handle_process_event);
 			resume(c, e);
+			/* If it no longer exists, free it's coroutine */
+			if (process->status != PROCESS_ALIVE) {
+				coroutine_free(process->coroutine);
+			}
 		} else {
 			printf("Rootserver got an unknown message\n");
 		}
@@ -471,7 +475,7 @@ static void* _sos_late_init(void* unusedarg) {
 	coroutine_start(coro_event_loop, event_loop);
 	trace(5);
 	resume(coro_event_loop, (void*)sos_syscall_cap);
-	panic("We should not be here");
+	panic("The main event loop yielded. This should never happen");
 	__builtin_unreachable();
 }
 

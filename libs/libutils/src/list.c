@@ -15,8 +15,6 @@
 
 typedef struct list_node node_t;
 
-static int cmp_equality(void *a, void *b) { return !(a == b); }
-
 void *list_pop(list_t *l) {
 	assert(l != NULL);
 	node_t *n = l->head;
@@ -26,8 +24,8 @@ void *list_pop(list_t *l) {
 	}
 	void *data = n->data;
 
-	list_remove(l, n->data, cmp_equality);
-
+	l->head = n->next;
+	free(n);
 	return data;
 }
 
