@@ -95,14 +95,10 @@ static void* _sos_late_init(void* unusedarg);
  */
 extern fhandle_t mnt_point;
 
-void handle_syscall(seL4_Word badge, int num_args) {
+void handle_syscall(struct process* process) {
 	seL4_Word syscall_number;
 	seL4_CPtr reply_cap;
-	struct process* process = get_process(badge);
-	if (process == NULL) {
-		dprintf(0, "SYSCALL from unknown process with PID %u\n", badge);
-		panic("Unknown process made a syscall");
-	}
+
 	struct ipc_command ipc = ipc_create();
 	ipc_unpacki(&ipc, &syscall_number);
 
@@ -227,12 +223,25 @@ struct event {
 	seL4_Word label;
 	seL4_MessageInfo_t message;
 };
-
-void* handle_event(void* e) {
+static void* handle_event(void* e);
+static void* handle_process_event(void* e);
+static void* event_loop(void* void_ep) {
+	seL4_CPtr ep = (seL4_CPtr)void_ep;
+	while (1) {
+		seL4_Word badge;
+		seL4_Word label;
+		seL4_MessageInfo_t message;
+		message = seL4_Wait(ep, &badge);
+		label = seL4_MessageInfo_get_label(message);
+		struct event e = {badge, label, message};
+		handle_event(&e);
+		trace(5);
+	}
+	return NULL;
+}
+static void* handle_event(void* e) {
 	struct event* event = (struct event*)e;
 	seL4_Word badge = event->badge;
-	seL4_Word label = event->label;
-	seL4_MessageInfo_t message = event->message;
 
 	dprintf(3, "SOS activated\n");
 	if (badge & IRQ_EP_BADGE) {
@@ -253,50 +262,40 @@ void* handle_event(void* e) {
 	} else {
 		struct process* process = get_process(badge);
 		if (process) {
-			kassert(process->current_coroutine == NULL);
-			// mark the current coroutine so we know not to kill it
-			process->current_coroutine = current_coro();
-
-			if (label == seL4_VMFault) {
-				dprintf(3, "VMFAULT\n");
-				sos_handle_vmfault(process);
-
-			} else if (label == seL4_NoFault) {
-				/* System call */
-				handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-			}
-
-			// handle the cases when process dies
-			// e.g you call the exit syscall and the
-			// process pointer is no longer valid
-			process = get_process(badge);
-			if (process) {
-				// it's now ok to kill it
-				process->current_coroutine = NULL;
-				signal(process->event_finished_syscall, NULL);
-			}
-
+			/* If this was a syscall by a process, run it in that
+			 * process's coroutine */
+			coro c = process->coroutine;
+			kassert(coro_idle(c));
+			coroutine_start(c, handle_process_event);
+			resume(c, e);
 		} else {
 			printf("Rootserver got an unknown message\n");
 		}
 	}
-	dprintf(3, "Coro complete\n");
 	return 0;
 }
+static void* handle_process_event(void* event_ptr) {
+	struct event event = *((struct event*)event_ptr);
+	seL4_Word badge = event.badge;
+	seL4_Word label = event.label;
 
-void* event_loop(void* void_ep) {
-	seL4_CPtr ep = (seL4_CPtr)void_ep;
-	while (1) {
-		seL4_Word badge;
-		seL4_Word label;
-		seL4_MessageInfo_t message;
-		message = seL4_Wait(ep, &badge);
-		label = seL4_MessageInfo_get_label(message);
-		struct event e = {badge, label, message};
-		coro event_handler = coroutine(&handle_event);
+	/* This is called by process_event, so process is valid */
+	struct process* process = get_process(badge);
+	if (label == seL4_VMFault) {
+		dprintf(3, "VMFAULT\n");
+		sos_handle_vmfault(process);
 
-		trace(5);
-		resume(event_handler, &e);
+	} else if (label == seL4_NoFault) {
+		/* System call */
+		handle_syscall(process);
+	}
+
+	// handle the cases when process dies
+	// e.g you call the exit syscall and the
+	// process pointer is no longer valid
+	process = get_process(badge);
+	if (process) {
+		signal(process->event_finished_syscall, NULL);
 	}
 	return NULL;
 }
@@ -460,10 +459,13 @@ static void* _sos_late_init(void* unusedarg) {
 	/* Main will yield at some point, at which point we'll start the main event
 	 * loop *
 	 * which will handle interrupts as SOS initializes */
-	coro main_func = coroutine(sos_main);
+	coro coro_main_func = coroutine_create(&sos_process);
+	coro coro_event_loop = coroutine_create(&sos_process);
+	coroutine_start(coro_main_func, sos_main);
 	trace(5);
-	resume(main_func, NULL);
-	coro coro_event_loop = coroutine(event_loop);
+	resume(coro_main_func, NULL);
+
+	coroutine_start(coro_event_loop, event_loop);
 	trace(5);
 	resume(coro_event_loop, (void*)sos_syscall_cap);
 	panic("We should not be here");

@@ -12,16 +12,22 @@
 #define STACK_ALIGNMENT 8 /* Stacks must be aligned to 8 bytes */
 #define STACK_SIZE 4096 * 3
 
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+
+#define DEBUG_VAL 0x132193
 /* Ideally each coroutine struct should be located
  * in it's own mapped area for debugging in the event
  * of an overflow */
 struct coroutine {
 	jmp_buf context;
 	struct coroutine* next;
-	int counter;
-} first;
+	void* stack_head;
+	struct process* process;
+	bool idle;
+	uint32_t debug;
+} first = {.process = &sos_process, .idle = false, .debug = DEBUG_VAL};
 
-struct coroutine* idle = NULL;
 struct coroutine* current = &first;
 
 static void push(struct coroutine** list, struct coroutine* c) {
@@ -39,7 +45,6 @@ static struct coroutine* pop(struct coroutine** list) {
 struct coroutine* current_coro(void) {
 	return current;
 }
-int current_coro_num(void) { return current->counter; }
 
 int resumable(struct coroutine* coro) { return (coro && coro->next == NULL); }
 /* Used for argument passing between routines */
@@ -48,22 +53,25 @@ static void* volatile pass_arg;
 static void* pass(struct coroutine* me, void* arg) {
 	kassert(me != NULL);
 	kassert(current != NULL);
+	kassert(me->debug == DEBUG_VAL);
 	pass_arg = arg;
 	trace(5);
 	if (!setjmp(me->context)) {
 		trace(5);
-		dprintf(5, "Jumping from stack: %d\n", me->counter);
+		dprintf(5, "Jumping from stack: %s\n", me->process->name);
 		longjmp(current->context, 1);
 		trace(5);
 	}
-	dprintf(5, "Jumped to stack: %d\n", me->counter);
+	kassert(me->debug == DEBUG_VAL);
+	kassert(me->process != NULL);
+	dprintf(5, "Jumped to stack: %s\n", me->process->name);
 	trace(5);
 	return pass_arg;
 }
 
 void* resume(struct coroutine* c, void* arg) {
 	if (!resumable(c)) {
-		printf("Stack %d is busted\n", c->counter);
+		printf("Stack <%s:%u> is busted\n", c->process->name, c->process->pid);
 		kassert(resumable(c));
 	}
 	trace(5);
@@ -93,49 +101,58 @@ static void* coroutine_run(void* arg) {
 	}
 	dprintf(5, "Resuming coro: %p\n", self);
 	void* retfun = func(pass_arg);
-	dprintf(5, "Coro going idle: %p\n", self);
-
+	dprintf(5, "Coro going idle: %p, <%s:%u>\n", self, self->process->name,
+			self->process->pid);
 	pass_arg = retfun;
-	push(&idle, pop(&current));
+	pop(&current);
+	self->idle = true;
+	kassert(self->debug == DEBUG_VAL);
 	longjmp(current->context, 1);
 
 	__builtin_unreachable();
 }
-
-struct coroutine* coroutine(void* function(void* arg)) {
-	static int counter = 1;
-	trace(5);
-	struct coroutine* ret_co = NULL;
-	if (idle == NULL) {
-		dprintf(2, "Allocating new coroutine: %d\n", counter);
-		void* stack =
-			(void*)syscall_mmap(&sos_process, STACK_SIZE,
-								PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED);
-		trace(5);
-		dprintf(5, "Stack is at %p\n", stack);
-		if (stack == NULL) {
-			trace(5);
-			return NULL;
-		}
-		trace(5);
-		ret_co = (struct coroutine*)ALIGN_DOWN(
-			(uintptr_t)stack + STACK_SIZE - sizeof(struct coroutine),
-			STACK_ALIGNMENT);
-		ret_co->counter = counter;
-		counter++;
-	} else {
-		trace(5);
-		ret_co = pop(&idle);
-	}
-	if (ret_co == NULL) {
+struct coroutine* coroutine_create(struct process* process) {
+	kassert(process != NULL);
+	void* stack = (void*)syscall_mmap(
+		&sos_process, STACK_SIZE, PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED);
+	if (!stack) {
 		return NULL;
 	}
-	struct coarg c;
-	c.coro = ret_co;
-	c.func = function;
-	trace(5);
-	utils_run_on_stack(ret_co, coroutine_run, &c);
-	trace(5);
-	dprintf(5, "Returning new coroutine: %p\n", ret_co);
+
+	struct coroutine* ret_co = (struct coroutine*)ALIGN_DOWN(
+		(uint32_t)stack + STACK_SIZE - sizeof(struct coroutine), 8);
+	ret_co->debug = DEBUG_VAL;
+	ret_co->process = process;
+	ret_co->idle = true;
+	dprintf(3, "Created new coro at %p assigned to <%s:%u>\n", ret_co,
+			process->name, process->pid);
 	return ret_co;
 }
+bool coro_idle(struct coroutine* coro) { return coro->idle; }
+struct process* current_process(void) {
+	return current->process;
+}
+void coroutine_free(struct coroutine* coro) {
+	kassert(coro->idle == true);
+	coro->debug = 0;
+	syscall_munmap(&sos_process, (vaddr_t)coro);
+}
+
+struct coroutine* coroutine_start(struct coroutine* coro,
+								  void* function(void* arg)) {
+	struct coarg c;
+	kassert(coro != NULL);
+	kassert(coro->idle == true);
+	kassert(coro->process != NULL);
+	kassert(coro->debug == DEBUG_VAL);
+	c.coro = coro;
+	c.func = function;
+	coro->idle = false;
+	trace(5);
+	utils_run_on_stack(coro, coroutine_run, &c);
+	trace(5);
+	dprintf(5, "Returning new coroutine: %p\n", coro);
+	return coro;
+}
+
+#pragma GCC pop_options

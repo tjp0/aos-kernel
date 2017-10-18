@@ -11,6 +11,7 @@
 #include "debug.h"
 #include <globals.h>
 #include <libcoro.h>
+#include <process.h>
 #include <serial/serial.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -22,6 +23,6 @@ void plogf(const char* msg, ...) {
 	va_end(alist);
 }
 void _tracer(const char* file, const int line, const char* function) {
-	printf("%u trace: <%s>:%u | %s\n", current_coro_num(), function, line,
-		   file);
+	printf("<%s:%u> trace: <%s>:%u | %s\n", current_process()->name,
+		   current_process()->pid, function, line, file);
 }

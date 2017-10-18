@@ -3,24 +3,30 @@
  */
 
 #pragma once
+#include <stdbool.h>
 #include <stdint.h>
-
+struct process;
 typedef struct coroutine *coro;
 
-/*
- * Create a coroutine that will run fun(). The coroutine starts off suspended.
- * When it is first resumed, the argument to resume() is passed to fun().
- * If fun() returns, its return value is returned by resume() as if the
- * coroutine yielded, except that the coroutine is then no longer resumable
- * and may be discarded.
- */
-coro coroutine(void *fun(void *arg));
+/* Creates a new coroutine that can be passed
+ * to coroutine_start */
+coro coroutine_create(struct process *process);
 
-/* Return the number of the stack currently in use */
-int current_coro_num(void);
+/* Frees a coroutine */
+void coroutine_free(coro c);
+/*
+ * Initializes a coroutine (c) to run a function
+ * resume it to start
+ */
+coro coroutine_start(coro c, void *fun(void *arg));
 
 /* Return the currently running coroutine */
 coro current_coro(void);
+/* Return the process this coro is running under */
+struct process *current_process(void);
+
+/* Returns if the coro is idle */
+bool coro_idle(coro c);
 
 /*
  * Returns false when the coroutine has run to completion

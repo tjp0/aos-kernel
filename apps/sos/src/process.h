@@ -36,7 +36,7 @@ struct process {
 	timestamp_t start_time;
 
 	enum process_status status;
-	coro current_coroutine;
+	coro coroutine;
 	struct semaphore* event_finished_syscall;
 	struct semaphore* event_exited;
 };

@@ -211,6 +211,11 @@ struct process* process_create(char* app_name) {
 	serial_open(&process->fds.fds[1], O_WRONLY);
 	serial_open(&process->fds.fds[2], O_WRONLY);
 
+	process->coroutine = coroutine_create(process);
+	if (process->coroutine == NULL) {
+		goto err16;
+	}
+
 	trace(5);
 	/* Register the process in the process table */
 	process->status = PROCESS_ALIVE;
@@ -231,6 +236,7 @@ struct process* process_create(char* app_name) {
 	return process;
 
 /* Woo, error handling. Do everything above, but freeing in reverse */
+err16:
 err15:
 err14:
 err13:
@@ -304,8 +310,7 @@ void process_kill(struct process* process, uint32_t status) {
 
 	/* wait until a syscall is finished (if needed), unless it is called
 	 * exit */
-	if (process->current_coroutine != NULL &&
-		process->current_coroutine != current_coro()) {
+	if (coro_idle(process->coroutine) == false) {
 		wait(process->event_finished_syscall);
 	}
 
@@ -347,6 +352,7 @@ void process_zombie_reap(struct process* process) {
 	semaphore_destroy(process->event_finished_syscall);
 	semaphore_destroy(process->event_exited);
 	process_table[process->pid] = NULL;
+	coroutine_free(process->coroutine);
 	free(process->name);
 	free(process);
 }

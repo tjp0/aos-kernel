@@ -121,13 +121,15 @@ int lock(struct lock *l) {
 	if (is_locked(l)) {
 		kassert(l->locked != current_coro());
 		trace(5);
-		dprintf(3, "Lock: %p waited on by stack %u\n", l, current_coro_num());
+		dprintf(3, "Lock: %p waited on by <%s:%u>\n", l,
+				current_process()->name, current_process()->pid);
 		list_append(l->coros_waiting, current_coro());
 		yield(0);
 		trace(5);
 	}
 
-	dprintf(3, "Lock: %p locked by stack %u\n", l, current_coro_num());
+	dprintf(3, "Lock: %p locked by stack <%s:%u>\n", l, current_process()->name,
+			current_process()->pid);
 
 	kassert(l->locked == NULL);
 
@@ -139,7 +141,8 @@ int lock(struct lock *l) {
 /* lock becomes unlocked. resume the next coro available */
 int unlock(struct lock *l) {
 	kassert(l->locked == current_coro());
-	dprintf(3, "Lock: %p unlocked by stack %u\n", l, current_coro_num());
+	dprintf(3, "Lock: %p unlocked by stack <%s:%u>\n", l,
+			current_process()->name, current_process()->pid);
 	l->locked = NULL;
 	trace(5);
 	coro c = (coro)list_pop(l->coros_waiting);
