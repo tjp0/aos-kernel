@@ -41,6 +41,19 @@ static void prstat(const char *name) {
 		   sbuf.st_fmode & FM_EXEC ? 'x' : '-', sbuf.st_size, sbuf.st_ctime,
 		   sbuf.st_atime, name);
 }
+static int __exit(int argc, char **argv) {
+	exit(0);
+	return 0;
+}
+
+static int debug(int argc, char **argv) {
+	if (argc != 2) {
+		printf("Usage: debug PID\n");
+		return 1;
+	}
+	sos_process_debug(atoi(argv[1]));
+	return 0;
+}
 
 static int cat(int argc, char **argv) {
 	int fd;
@@ -343,7 +356,9 @@ struct command commands[] = {{"dir", dir},
 							 {"benchmark", benchmark},
 							 {"id", id},
 							 {"wait", wait},
-							 {"thrash", thrash}};
+							 {"thrash", thrash},
+							 {"debug", debug},
+							 {"exit", __exit}};
 
 int main(void) {
 	char buf[BUF_SIZ];

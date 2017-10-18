@@ -52,7 +52,7 @@ uint32_t syscall_process_status(struct process* process, vaddr_t processes,
 	uint32_t pid = 1;
 	uint32_t pid_count = 0;
 
-	for (pid = 1; pid < MAX_PROCESSES; ++pid) {
+	for (pid = 0; pid < MAX_PROCESSES; ++pid) {
 		if (process_table[pid] &&
 			process_table[pid]->status != PROCESS_ZOMBIE) {
 			// popualate the things for each entry
@@ -83,6 +83,12 @@ uint32_t syscall_process_status(struct process* process, vaddr_t processes,
 }
 
 uint32_t syscall_process_kill(struct process* process, uint32_t pid) {
+	if (pid == 0) {
+		return -1;
+	}
+	if (pid == 1) {
+		syscall_process_exit(process, 0);
+	}
 	dprintf(0, "Killing pid %d \n", pid);
 	struct process* process_to_kill = get_process(pid);
 
@@ -96,6 +102,9 @@ uint32_t syscall_process_kill(struct process* process, uint32_t pid) {
 }
 
 static uint32_t wait_pid(uint32_t pid) {
+	if (pid == 0) {
+		return -1;
+	}
 	struct process* process_to_wait_on = get_process(pid);
 	if (!process_to_wait_on) {
 		return -1;
@@ -115,6 +124,22 @@ uint32_t syscall_process_wait(struct process* process, uint32_t pid) {
 		return wait_any();
 	}
 	return wait_pid(pid);
+}
+/* A debugging syscall that just dumps a bunch of info about a process to the
+ * serial console */
+uint32_t syscall_process_debug(struct process* me, uint32_t pid) {
+	if (process_table[pid] == NULL) {
+		return -1;
+	}
+	struct process* process = process_table[pid];
+	printf("*** %s ***\n", process->name);
+	printf("PID: %u\n", process->pid);
+	if (process->status != PROCESS_ALIVE) {
+		printf("Dead process\n");
+		return 0;
+	}
+	regions_print(process->vspace.regions);
+	return 0;
 }
 
 /* TODO

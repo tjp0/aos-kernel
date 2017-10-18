@@ -18,9 +18,10 @@
 static struct lock* swaplock = NULL;
 static struct page_table_entry* clock_pointer;
 
-static void* frame_alloc_swap();
-static void pte_free(struct page_table_entry* pte);
-int pd_map_page(struct page_directory* pd, struct page_table_entry* page);
+static struct frame* frame_alloc_swap();
+void pte_free(struct page_table_entry* pte);
+static int pd_map_page(struct page_directory* pd, struct page_table_entry* page,
+					   seL4_ARM_Page pte_cap);
 static int vm_updatepage(struct page_table_entry* pte);
 static inline uint32_t vaddr_to_ptsoffset(vaddr_t address) {
 	return ((address >> 20) & 0x00000FFF);
@@ -32,6 +33,8 @@ static inline uint32_t vaddr_to_pteoffset(vaddr_t address) {
 
 static void clock_add(struct page_table_entry* pte) {
 	kassert(pte != NULL);
+	kassert(lock_owned(swaplock));
+	kassert(lock_owned(pte->lock));
 	if (!(pte->flags & PAGE_PINNED)) {
 		if (clock_pointer == NULL) {
 			clock_pointer = pte;
@@ -48,6 +51,8 @@ static void clock_add(struct page_table_entry* pte) {
 
 static void clock_remove(struct page_table_entry* pte) {
 	kassert(pte != NULL);
+	kassert(lock_owned(swaplock));
+	kassert(lock_owned(pte->lock));
 	if (pte->next == NULL) {
 		kassert(pte->flags & PAGE_PINNED);
 		return;
@@ -67,8 +72,8 @@ static void clock_remove(struct page_table_entry* pte) {
 	}
 }
 
-static struct page_table* create_pt(struct page_directory* pd,
-									vaddr_t address) {
+static struct page_table* create_pt(struct page_directory* pd, vaddr_t address,
+									seL4_ARM_PageTable pt_cap) {
 	struct page_table* pt = malloc(sizeof(struct page_table));
 	if (pt == NULL) {
 		goto fail3;
@@ -77,28 +82,30 @@ static struct page_table* create_pt(struct page_directory* pd,
 	memset(pt, 0, sizeof(struct page_table));
 
 	seL4_Word pt_addr;
-	seL4_ARM_PageTable pt_cap;
 	int err;
 
-	/* Allocate a PT object */
-	pt_addr = ut_alloc(seL4_PageTableBits);
-	if (pt_addr == 0) {
-		goto fail3;
-	}
-	/* Create the frame cap */
-	err = cspace_ut_retype_addr(pt_addr, seL4_ARM_PageTableObject,
-								seL4_PageTableBits, cur_cspace, &pt_cap);
-	if (err) {
-		goto fail2;
-	}
-	/* Tell seL4 to map the PT in for us */
-	err = seL4_ARM_PageTable_Map(pt_cap, pd->seL4_pd, address,
-								 seL4_ARM_Default_VMAttributes);
-	if (err) {
-		dprintf(
-			2, "Failed creating page table, fail1, addr=0x%x, err=%u\n, reg=%d",
-			address, err, seL4_GetMR(0));
-		goto fail1;
+	if (pt_cap == 0) {
+		/* Allocate a PT object */
+		pt_addr = ut_alloc(seL4_PageTableBits);
+		if (pt_addr == 0) {
+			goto fail3;
+		}
+		/* Create the frame cap */
+		err = cspace_ut_retype_addr(pt_addr, seL4_ARM_PageTableObject,
+									seL4_PageTableBits, cur_cspace, &pt_cap);
+		if (err) {
+			goto fail2;
+		}
+		/* Tell seL4 to map the PT in for us */
+		err = seL4_ARM_PageTable_Map(pt_cap, pd->seL4_pd, address,
+									 seL4_ARM_Default_VMAttributes);
+		if (err) {
+			dprintf(2,
+					"Failed creating page table, fail1, addr=0x%x, err=%u\n, "
+					"reg=%d",
+					address, err, seL4_GetMR(0));
+			goto fail1;
+		}
 	}
 
 	pt->seL4_pt = pt_cap;
@@ -126,7 +133,7 @@ static void pt_free(struct page_table* pt) {
 	cspace_delete_cap(cur_cspace, pt->seL4_pt);
 	free(pt);
 }
-static void pte_free(struct page_table_entry* pte) {
+void pte_free(struct page_table_entry* pte) {
 	lock(swaplock);
 	lock(pte->lock);
 	dprintf(3, "Destroying page %p at %p:%08x\n", pte, pte->pd, pte->address);
@@ -135,7 +142,7 @@ static void pte_free(struct page_table_entry* pte) {
 		swapfree_frame(pte->disk_frame_offset);
 	} else {
 		clock_remove(pte);
-		frame_free(frame_cell_to_vaddr(pte->frame));
+		frame_free(pte->frame);
 		cspace_delete_cap(cur_cspace, pte->cap);
 	}
 	lock_destroy(pte->lock);
@@ -144,31 +151,39 @@ static void pte_free(struct page_table_entry* pte) {
 }
 
 /* Returns a new PTE, already locked */
-static struct page_table_entry* create_pte(vaddr_t address, uint8_t flags) {
+static struct page_table_entry* create_pte(struct page_directory* pd,
+										   vaddr_t address, uint8_t flags,
+										   seL4_ARM_Page pte_cap) {
 	struct page_table_entry* pte = malloc(sizeof(struct page_table_entry));
 	memset(pte, 0, sizeof(struct page_table_entry));
 	pte->address = address;
-	pte->flags = flags;
-	pte->cap = 0;
+	pte->flags = flags | PAGE_ACCESSED;
+	pte->cap = pte_cap;
+	pte->pd = pd;
 	pte->lock = lock_create();
 
 	if (pte->lock == NULL) {
 		free(pte);
 		return NULL;
 	}
-
 	trace(5);
 	lock(pte->lock);
-	trace(5);
-	void* new_frame = frame_alloc_swap();
-	if (new_frame == NULL) {
-		free(pte);
-		lock_destroy(pte->lock);
-		return NULL;
+
+	if (pte_cap == 0) {
+		trace(5);
+		struct frame* new_frame = frame_alloc_swap();
+		trace(5);
+		if (new_frame == NULL) {
+			free(pte);
+			lock_destroy(pte->lock);
+			return NULL;
+		}
+		pte->frame = new_frame;
+		lock(swaplock);
+		clock_add(pte);
+		unlock(swaplock);
+		trace(5);
 	}
-	struct frame* frame = get_frame(new_frame);
-	pte->frame = frame;
-	clock_add(pte);
 #ifdef VM_HEAVY_VETTING
 	pte->debug_check = VM_HEAVY_VETTING;
 #endif
@@ -220,7 +235,8 @@ struct page_table_entry* pd_getpage(struct page_directory* pd,
 }
 
 struct page_table_entry* pd_createpage(struct page_directory* pd,
-									   vaddr_t address, uint8_t flags) {
+									   vaddr_t address, uint8_t flags,
+									   seL4_ARM_Page pte_cap) {
 	assert(pd != NULL);
 	address = PAGE_ALIGN_4K(address);
 	if (address == 0) {
@@ -230,7 +246,7 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(address)];
 	dprintf(3, "New page 1st index: %u\n", vaddr_to_ptsoffset(address));
 	if (pt == NULL) {
-		pt = create_pt(pd, address);
+		pt = create_pt(pd, address, 0);
 		if (pt == NULL) {
 			return NULL;
 		}
@@ -240,52 +256,63 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 	struct page_table_entry* pte = pt->ptes[vaddr_to_pteoffset(address)];
 	if (pte == NULL) {
 		dprintf(2, "Creating new page table entry\n");
-		pte = create_pte(address, flags);
+		pte = create_pte(pd, address, flags, pte_cap);
 
 		if (pte == NULL) {
 			return NULL;
 		}
-		pte->pd = pd;
+		trace(5);
 		dprintf(3, "Mapping page in\n");
-		if (pd_map_page(pd, pte) < 0) {
+		if (pd_map_page(pd, pte, pte_cap) < 0) {
 			pte_free(pte);
 			return NULL;
 		}
 		pt->ptes[vaddr_to_pteoffset(address)] = pte;
-		pd->num_ptes++;
+		if (pte_cap == 0) {
+			pd->num_ptes++;
+		}
 		dprintf(3, "New page created\n");
 	}
 	return pte;
 }
 /* Returns a locked pte */
 struct page_table_entry* sos_map_page(struct page_directory* pd,
-									  vaddr_t address, uint8_t permissions) {
-	return pd_createpage(pd, address, permissions);
+									  vaddr_t address, uint8_t permissions,
+									  seL4_ARM_Page pte_cap) {
+	if (pd == sos_process.vspace.pagetable) {
+		dprintf(1, "Mapping 0x%08x into SOS with permissions: %u\n", address,
+				permissions);
+	}
+	return pd_createpage(pd, address, permissions, pte_cap);
 }
 
-int pd_map_page(struct page_directory* pd, struct page_table_entry* page) {
+static int pd_map_page(struct page_directory* pd, struct page_table_entry* page,
+					   seL4_ARM_Page pte_cap) {
 	trace(4);
 	struct page_table* pt = pd->pts[vaddr_to_ptsoffset(page->address)];
+	bool cap_provided = (pte_cap != 0);
 
 	kassert(pt != NULL);
 	kassert(pd->seL4_pd != 0);
-	seL4_CPtr vcap;
-
-	vcap = cspace_copy_cap(cur_cspace, cur_cspace, page->frame->cap,
-						   seL4_AllRights);
-	int err;
-	if (vcap == 0) {
-		return VM_FAIL;
+	if (pte_cap == 0) {
+		pte_cap = cspace_copy_cap(cur_cspace, cur_cspace, page->frame->cap,
+								  seL4_AllRights);
+		if (pte_cap == 0) {
+			return VM_FAIL;
+		}
 	}
-	page->cap = vcap;
+	page->cap = pte_cap;
 	trace(4);
+	int err;
 	err = vm_updatepage(page);
 
 	if (err) {
 		trace(4);
 		dprintf(0, "Failed to map page in, err code %d\n", err);
-		cspace_delete_cap(cur_cspace, vcap);
-		page->cap = 0;
+		if (!cap_provided) {
+			cspace_delete_cap(cur_cspace, pte_cap);
+			page->cap = 0;
+		}
 		return VM_FAIL;
 	}
 	return VM_OKAY;
@@ -326,7 +353,7 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 		return VM_NOREGION;  // VM_NORWEGIAN lol
 	}
 
-	if ((pte = pd_createpage(vspace->pagetable, address, region->perm)) ==
+	if ((pte = pd_createpage(vspace->pagetable, address, region->perm, 0)) ==
 		NULL) {
 		return VM_FAIL;
 	}
@@ -336,8 +363,6 @@ int vm_missingpage(struct vspace* vspace, vaddr_t address) {
 
 	assert(pd_getpage(vspace->pagetable, address) == pte);
 
-	/* load data into page */
-	// TODO fix edgecases
 	trace(5);
 	region->load_page(region, vspace, address);
 	unlock(pte->lock);
@@ -372,7 +397,7 @@ int vm_swapout(struct page_table_entry* pte) {
 	cspace_delete_cap(cur_cspace, pte->cap);
 	pte->cap = 0;
 
-	pte->disk_frame_offset = swapout_frame(frame_cell_to_vaddr(pte->frame));
+	pte->disk_frame_offset = swapout_frame(frame_to_vaddr(pte->frame));
 	trace(5);
 	dprintf(1, "** pte %p\n", (void*)pte);
 	if (pte->disk_frame_offset < 0) {
@@ -385,7 +410,7 @@ int vm_swapout(struct page_table_entry* pte) {
 
 	trace(5);
 	dprintf(1, "** pte->frame: %p\n", (void*)pte->frame);
-	frame_free(frame_cell_to_vaddr(pte->frame));
+	frame_free(pte->frame);
 	trace(5);
 	pte->frame = NULL;
 	return 0;
@@ -397,15 +422,14 @@ int vm_swapin(struct page_table_entry* pte) {
 	trace(4);
 	kassert(pte != NULL);
 	kassert(pte->frame == NULL);
-	pte->frame = get_frame(frame_alloc_swap());
+	pte->frame = frame_alloc_swap();
 	if (pte->frame == NULL) {
 		dprintf(0, "Failed to allocate frame to swap in page\n");
 		return VM_FAIL;
 	}
 	dprintf(1, "Swapping in page %08x in addrspace %p from %08x on disk\n",
 			pte->address, pte->pd, pte->disk_frame_offset);
-	if (swapin_frame(pte->disk_frame_offset, frame_cell_to_vaddr(pte->frame)) <
-		0) {
+	if (swapin_frame(pte->disk_frame_offset, pte->frame) < 0) {
 		goto fail3;
 	}
 
@@ -438,7 +462,7 @@ fail1:
 	trace(0);
 	return VM_FAIL;
 fail3:
-	frame_free(frame_cell_to_vaddr(pte->frame));
+	frame_free((pte->frame));
 	pte->frame = NULL;
 	trace(0);
 	return VM_FAIL;
@@ -560,6 +584,9 @@ static int vm_updatepage(struct page_table_entry* pte) {
 	if (!(pte->flags & PAGE_ACCESSED)) {
 		permissions = 0;
 	}
+	if (pte->flags & PAGE_NOCACHE) {
+		attributes = 0;
+	}
 	if (!(pte->flags & PAGE_EXECUTABLE)) {
 		attributes |= seL4_ARM_ExecuteNever;
 	}
@@ -623,13 +650,67 @@ int vm_swappage(void) {
 	return ret;
 }
 
-static void* frame_alloc_swap() {
-	void* ret = frame_alloc();
-	while (ret == NULL) {
+struct frame* frame_alloc_swap() {
+	trace(5);
+	struct frame* frame = frame_alloc();
+	trace(5);
+	while (frame == NULL) {
 		if (vm_swappage() != VM_OKAY) {
 			return NULL;
 		}
-		ret = frame_alloc();
+		trace(5);
+		frame = frame_alloc();
 	}
-	return ret;
+	return frame;
+}
+
+extern void* __executable_start;
+extern void* _end;
+
+/* This is a bit ugly; used for initializing the page directory for SOS */
+struct page_directory* pd_createSOS(seL4_CPtr pdcap,
+									const seL4_BootInfo* boot) {
+	struct page_directory* pd = pd_create(pdcap);
+	kassert(pd != NULL); /* This function is only called at init,
+							so we can panic if we fail */
+	trace(5);
+	uint32_t start = (uint32_t)&__executable_start;
+	start = ALIGN_DOWN(start, 256 * PAGE_SIZE_4K);
+	uint32_t end = (uint32_t)&_end;
+	trace(5);
+	/* For each ARM Page Table within our elf */
+	seL4_CPtr pt_cap = boot->userImagePTs.start;
+	seL4_CPtr pte_cap = boot->userImageFrames.start;
+	for (uint32_t i = start; i < end; i += 256 * PAGE_SIZE_4K) {
+		trace(5);
+		if (pt_cap == boot->userImagePTs.end) {
+			trace(5);
+			break;
+		}
+		struct page_table* pt = create_pt(pd, i, pt_cap);
+		kassert(pt != NULL);
+		trace(5);
+		pd->pts[vaddr_to_ptsoffset(i)] = pt;
+		for (uint32_t j = i; i < 256 * PAGE_SIZE_4K; i += PAGE_SIZE_4K) {
+			trace(5);
+			if (pte_cap == boot->userImageFrames.end) {
+				trace(5);
+				break;
+			}
+			struct page_table_entry* pte = create_pte(
+				pd, j,
+				PAGE_EXECUTABLE | PAGE_PINNED | PAGE_READABLE | PAGE_WRITABLE,
+				pt_cap);
+			kassert(pte != NULL);
+			trace(5);
+			pt->ptes[vaddr_to_pteoffset(j)] = pte;
+			pd->num_ptes++;
+			pte_cap++;
+			trace(5);
+		}
+		pt_cap++;
+		trace(5);
+	}
+	trace(5);
+	return pd;
 }

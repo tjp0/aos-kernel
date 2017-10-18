@@ -389,6 +389,9 @@ seL4_Word ut_alloc(int sizebits) {
 			return 0;
 	}
 
+	if (addr == 0) {
+		dprintf(0, "UT_ALLOC Reports out of memory\n");
+	}
 	return addr;
 }
 

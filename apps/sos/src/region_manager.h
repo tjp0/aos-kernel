@@ -10,6 +10,7 @@
 // #define IS_ALIGNED_4K(addr) IS_ALIGNED(addr, PAGE_BITS_4K)
 struct _region_node;
 struct vspace;
+struct process;
 
 typedef void (*load_page_func)(struct _region_node* reg, struct vspace* vspace,
 							   vaddr_t vaddr);
@@ -35,6 +36,9 @@ typedef struct _region_list {
 } region_list;
 
 /* malloc the thing and get things set up*/
+/* raw if the region list should start empty
+ * otherwise initialized to a sane default for
+ * most processes */
 int init_region_list(region_list** reg_list);
 
 /* malloc the thing and get things set up*/
@@ -49,12 +53,6 @@ region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 
 void region_list_destroy(region_list* reg_list);
 
-/* Remove the region corresponding to addr
- * Returns -1 if that region couldn't be found
- *			0 if it worked
- * * * * * * * * * * * * * * * * * * * * * * * */
-int remove_region(region_list* reg_list, vaddr_t addr);
-
 region_node* find_region(region_list* reg_list, vaddr_t addr);
 
 void regions_print(region_list* reg_list);
@@ -68,3 +66,7 @@ int expand_right(region_node* node, uint32_t size);
 int in_stack_region(region_node* node, vaddr_t vaddr);
 
 region_node* create_heap(region_list* region_list);
+region_node* create_mmap(region_list* region_list, uint32_t size,
+						 uint32_t perm);
+int region_remove(region_list* regionlist, struct process* process,
+				  vaddr_t region);

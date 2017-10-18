@@ -11,11 +11,12 @@
 #include <vm.h>
 #include "cpio.h"
 #include "elf.h"
+#include "fcntl.h"
 #include "globals.h"
 #include "sos_coroutine.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
-#define verbose 0
+#define verbose 10
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -28,13 +29,13 @@ void process_zombie_reap(struct process* process);
  * be stored in the clients cspace. */
 #define USER_EP_CAP (1)
 
-/* PID 0 is reserved, not used for anything */
+/* PID 0 is reserved, used for the kernel process */
 struct process* process_table[MAX_PROCESSES];
 
 /* return a pid if free or if it represents a zombie process
  * Returns 0 if no PIDs free */
 static uint32_t get_new_pid(void) {
-	static uint32_t curpid = 1;
+	static uint32_t curpid = 0;
 	for (uint32_t i = curpid + 1; i < MAX_PROCESSES; ++i) {
 		if (process_table[i] == NULL ||
 			process_table[i]->status == PROCESS_ZOMBIE) {
@@ -42,7 +43,6 @@ static uint32_t get_new_pid(void) {
 			return i;
 		}
 	}
-
 	for (uint32_t i = 1; i < curpid; ++i) {
 		if (process_table[i] == NULL ||
 			process_table[i]->status == PROCESS_ZOMBIE) {
@@ -184,9 +184,10 @@ struct process* process_create(char* app_name) {
 	dprintf(0, "Mapping IPC buffer at vaddr 0x%x\n", ipc_region->vaddr);
 	struct page_table_entry* ipc_pte =
 		sos_map_page(process->vspace.pagetable, ipc_region->vaddr,
-					 PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED);
+					 PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED, 0);
 
 	if (ipc_pte == NULL) {
+		trace(5);
 		goto err13;
 	}
 	unlock(ipc_pte->lock);
@@ -196,6 +197,7 @@ struct process* process_create(char* app_name) {
 							 process->vspace.pagetable->seL4_pd, seL4_NilData,
 							 ipc_region->vaddr, ipc_pte->cap);
 	if (err) {
+		trace(5);
 		goto err14;
 	}
 	trace(5);
@@ -205,6 +207,9 @@ struct process* process_create(char* app_name) {
 	if (stack_region == NULL) {
 		goto err15;
 	}
+
+	serial_open(&process->fds.fds[1], O_WRONLY);
+	serial_open(&process->fds.fds[2], O_WRONLY);
 
 	trace(5);
 	/* Register the process in the process table */

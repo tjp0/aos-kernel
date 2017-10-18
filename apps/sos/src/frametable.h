@@ -12,12 +12,11 @@ struct frame {
 	seL4_ARM_Page cap;
 };
 
-struct frame* get_frame(void* addr);
+struct frame* vaddr_to_frame(void* addr);
 
-void* frame_cell_to_vaddr(struct frame* frame_cell);
+void* frame_to_vaddr(struct frame* frame);
 
-void* frame_alloc(void);
-
+struct frame* frame_alloc(void);
+void frame_free(struct frame* frame);
 void ft_initialize(void);
-void frame_free(void* vaddr);
 void frame_test(void);

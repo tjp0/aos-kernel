@@ -150,4 +150,6 @@ int sos_share_vm(void *adr, size_t size, int writable);
 
 size_t sos_debug_print(const void *vData, size_t count);
 
+/* Dumps some useful info to the serial console */
+void sos_process_debug(pid_t pid);
 #endif

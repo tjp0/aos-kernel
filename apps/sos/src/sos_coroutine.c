@@ -117,6 +117,7 @@ void lock_destroy(struct lock *l) {
 }
 
 int lock(struct lock *l) {
+	kassert(l != NULL);
 	if (is_locked(l)) {
 		kassert(l->locked != current_coro());
 		trace(5);

@@ -40,8 +40,8 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 	trace(2);
 
 	assert(pte->frame != NULL);
-	void* dst = frame_cell_to_vaddr(pte->frame) +
-				(dest_vaddr - PAGE_ALIGN_4K(dest_vaddr));
+	void* dst =
+		frame_to_vaddr(pte->frame) + (dest_vaddr - PAGE_ALIGN_4K(dest_vaddr));
 
 	/* Some of the argument names here are a bit off, dst/src get swapped if the
 	 * copy to

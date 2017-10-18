@@ -6,6 +6,9 @@
 #include <sys/debug.h>
 
 int syscall_usleep(struct process* process, int milliseconds) {
+	if (milliseconds < 0) {
+		return 0;
+	}
 	return coro_sleep(milliseconds * 1000);
 }
 

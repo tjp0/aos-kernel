@@ -58,8 +58,8 @@ int start_timer(seL4_CPtr epit1_ep, seL4_CPtr epit2_ep) {
 	epit1_irq_cap = enable_irq(EPIT1_IRQ, epit1_ep);
 	epit2_irq_cap = enable_irq(EPIT2_IRQ, epit2_ep);
 
-	epit1_r = map_device(EPIT1_BASE, sizeof(struct EPIT_r));
-	epit2_r = map_device(EPIT2_BASE, sizeof(struct EPIT_r));
+	epit1_r = map_device("EPIT1", EPIT1_BASE, sizeof(struct EPIT_r));
+	epit2_r = map_device("EPIT2", EPIT2_BASE, sizeof(struct EPIT_r));
 	conditional_panic(epit1_r == NULL || epit2_r == NULL,
 					  "Failed to map EPIT registers");
 
