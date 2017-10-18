@@ -5,10 +5,9 @@
 #the BSD 2 - Clause license.Note that NO WARRANTY is provided.
 #See "LICENSE_BSD2.txt" for details.
 #
-#@ TAG(NICTA_BSD)
+#@TAG(NICTA_BSD)
 #
 
-		apps
-	- $(CONFIG_APP_ERROR_TEST) += error_test
+apps-$(CONFIG_APP_ERROR_TEST) += error_test
 
-	error_test : $(libc) libsel4 libsos
+error_test : $(libc) libsel4 libsos
