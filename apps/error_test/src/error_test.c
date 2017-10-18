@@ -171,9 +171,7 @@ void file_errors() {
 	assert(sos_sys_close(fd) == 0);
 }
 
-#define sbrk(x) 0
 void memory_errors() {
-	return;
 	int dummy_var;
 	void *heap_end = sbrk(0);
 
