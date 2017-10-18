@@ -72,7 +72,7 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 	seL4_ARM_Page_CleanInvalidate_Data(pte->cap, 0, PAGE_SIZE_4K);
 	trace(2);
 	dprintf(0, "Copy complete\n");
-	return 0;
+	return len;
 }
 
 int64_t copy_sos2vspace(void* src, vaddr_t dest_vaddr, struct vspace* vspace,
@@ -139,5 +139,6 @@ int64_t copy_vspace2sos(vaddr_t src, void* dst, struct vspace* vspace,
 						int64_t len, uint32_t flags) {
 	flags |= COPY_VSPACE2SOS;
 	dprintf(1, "Copy to sos addr: 0x%x\n", dst);
+
 	return copy_sos2vspace(dst, src, vspace, len, flags);
 }

@@ -6,7 +6,7 @@
 #include <sos.h>
 #include <utils/math.h>
 
-#define verbose 0
+#define verbose 2
 #include <sys/debug.h>
 #include <sys/kassert.h>
 
@@ -27,6 +27,10 @@ int syscall_write(struct process* process, int fdnum, vaddr_t ptr, int length) {
 	if (fd->dev_write == NULL) {
 		return -1;
 	}
+    /* check flags is either O_WRONLY or O_RDWR */
+    if (fd->flags == O_RDONLY) {
+        return -1;
+    }
 	return fd->dev_write(fd, &process->vspace, ptr, length);
 }
 
@@ -43,6 +47,36 @@ int syscall_read(struct process* process, int fdnum, vaddr_t ptr, int length) {
 	if (fd->dev_read == NULL) {
 		return -1;
 	}
+    /* check flags is either O_RDONLY or O_RDWR */
+    if (fd->flags == O_WRONLY) {
+        return -1;
+    }
+
+    /* check ptr and ptr+length are in the same region */
+    /* this if statement might be able to be removed once mmap is
+     * merged */
+    if (process && process->vspace.regions) {
+        dprintf(1, "hai\n");
+        region_list *rl = process->vspace.regions;
+        region_node *r = find_region(rl, ptr);
+        regions_print(rl);
+        dprintf(1, "rl: %p, r: %p\n", (void *) rl, (void *) r);
+        dprintf(1, "ptr: %p\n", (void *) ptr);
+        // if (!r) { return -1; } /* uncomment when mmap is merged (dbl check with tjp) */
+        if (r) { 
+            // return -1; 
+            dprintf(1, "here\n");
+            uint32_t r_end = r->vaddr + r->size;
+            uint32_t r_size_remaining = r_end - ptr;
+            dprintf(1, "r->vaddr: %p, + size: %p = %p\n", (void *) r->vaddr, (void *) r->size, (void *) r_end);
+            dprintf(1, "ptr: %p, remaining: %p\n", (void *) ptr, (void *) r_size_remaining);
+            if (length > r_size_remaining) {
+                dprintf(1, "returning -1\n");
+                return -1;
+            }
+        }
+    }
+
 	return fd->dev_read(fd, &process->vspace, ptr, length);
 }
 

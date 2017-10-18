@@ -213,6 +213,16 @@ struct nfs_fd_data {
 static int nfs_dev_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 						size_t length) {
 	trace(2);
+
+    /* check ptr and ptr+length are in the same region */
+    // region_list *rl = vspace->regions;
+    // region_node *r = find_region(rl, procbuf);
+    // uint32_t r_size = r->vaddr + r->size;
+    // uint32_t r_size_remaining = r_size - procbuf;
+    // if (length > r_size_remaining) {
+        // return -1;
+    // }
+
 	char buffer[NFS_BUFFER_SIZE];
 	kassert(fd != NULL);
 	struct nfs_fd_data* data = fd->data;
@@ -440,6 +450,7 @@ int nfs_dev_open(struct fd* fd, char* name, int flags) {
 	fd->dev_read = &nfs_dev_read;
 	fd->dev_close = &nfs_dev_close;
 	fd->dev_write = &nfs_dev_write;
+    fd->flags = flags;
 	return 0;
 }
 
