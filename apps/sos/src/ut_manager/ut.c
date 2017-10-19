@@ -206,6 +206,11 @@ int ut_table_init(const seL4_BootInfo* bi) {
 void ut_find_memory(seL4_Word* low, seL4_Word* high) {
 	*low = _low;
 	*high = _high;
+
+		if(CONFIG_SOS_DEBUG_UT_LIMIT > 0)
+		{
+			*high = *low+CONFIG_SOS_DEBUG_UT_LIMIT;
+		}
 }
 
 seL4_Word ut_steal_mem(int sizebits) {

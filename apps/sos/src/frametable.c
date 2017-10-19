@@ -21,7 +21,7 @@
 #define FRAME_CACHE_SIZE 30
 #define FRAME_CACHE_HIGH_WATER 20
 
-#define FRAME_RESERVED 90000
+#define FRAME_RESERVED_PERCENT 95.0f
 
 struct frame* frame_table = NULL;
 struct lock* frame_table_lock;
@@ -72,7 +72,13 @@ void* frame_to_vaddr(struct frame* frame_cell) {
 
 static struct frame* frame_physical_alloc(void) {
 	trace(5);
-	if (ft_numframes - frame_count < FRAME_RESERVED) {
+
+	/* To reserve enough room for caps and the like, we'll limit
+	 * the frametable to reserve a certain number of frames */
+
+	/* ft_numframes / 2 since ut_alloc is a simple buddy allocator
+	 * and that's the actual maximum number it will give us */
+	if (((float)frame_count / (ft_numframes/2)) > FRAME_RESERVED_PERCENT/100.0f) {
 		return NULL;
 	}
 	if (frame_count > CONFIG_SOS_DEBUG_FRAME_LIMIT &&
