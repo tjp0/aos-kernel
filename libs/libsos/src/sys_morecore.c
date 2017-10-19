@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <ipc.h>
 #include <sos.h>
+#include <sos.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -58,12 +59,18 @@ long sys_brk(va_list ap) {
 	return sys_brk_internal(newbrk);
 }
 
+void* sos_mmap(size_t length, uint32_t prot) {
+	return (void*)SYSCALL_ARG2(SOS_SYSCALL_MMAP, length, prot);
+}
+void sos_munmap(void* address) {
+	SYSCALL_ARG1(SOS_SYSCALL_MUNMAP, (uint32_t)address);
+}
+
 /* Large mallocs will result in muslc calling mmap, so we do a minimal
    implementation
    here to support that. We make a bunch of assumptions in the process */
 long sys_mmap2(va_list ap) {
-	/*
-	void *addr = va_arg(ap, void*);
+	void* addr = va_arg(ap, void*);
 	size_t length = va_arg(ap, size_t);
 	int prot = va_arg(ap, int);
 	int flags = va_arg(ap, int);
@@ -72,10 +79,14 @@ long sys_mmap2(va_list ap) {
 	(void)addr;
 	(void)prot;
 	(void)fd;
+	(void)flags;
 	(void)offset;
-	assert(!"not implemented");
-	*/
-	return -ENOMEM;
+
+	void* ret = sos_mmap(length, PROT_READABLE | PROT_WRITABLE);
+	if (ret == NULL) {
+		return -ENOMEM;
+	}
+	return (long)ret;
 }
 
 long sys_mremap(va_list ap) {

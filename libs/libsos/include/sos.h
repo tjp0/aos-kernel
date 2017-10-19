@@ -135,6 +135,14 @@ void sos_sys_usleep(int msec);
 /*                                   */
 /*************************************************************************/
 
+#define PROT_READABLE (1 << 0)
+#define PROT_WRITABLE (1 << 1)
+#define PROT_EXECUTABLE (1 << 2)
+
+void *sos_mmap(size_t size, uint32_t prot);
+
+void sos_munmap(void *address);
+
 int sos_share_vm(void *adr, size_t size, int writable);
 /* Make VM region ["adr","adr"+"size") sharable by other processes.
  * If "writable" is non-zero, other processes may have write access to the

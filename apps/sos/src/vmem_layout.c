@@ -1,19 +1,14 @@
-#include <sys/kassert.h>
-// #include <cspace/cspace.h>
 #include <frametable.h>
 #include <mapping.h>
-#include <sel4/sel4.h>
-#include <stdlib.h>
-// #include <string.h>
 #include <process.h>
+#include <sel4/sel4.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/kassert.h>
 #include <ut_manager/ut.h>
 #include <utils/page.h>
 #include <vm.h>
 #include <vmem_layout.h>
-// #define verbose 0
-// #include <sys/debug.h>
-// #include <sys/panic.h>
 
 // should probably not do this but whatevs
 seL4_Word ft_size;
@@ -86,6 +81,7 @@ void initialize_sos_memory(seL4_ARM_PageDirectory pd,
 	DMA_VSTART = node->vaddr;
 	DMA_VEND = node->vaddr + node->size;
 
+	/* Create a pagedirectory based upon SOS's initially provided CAPS */
 	sos_process.vspace.pagetable = pd_createSOS(pd, boot);
 	kassert(sos_process.vspace.pagetable != NULL);
 }

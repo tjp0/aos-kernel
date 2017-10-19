@@ -46,6 +46,9 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 	/* Some of the argument names here are a bit off, dst/src get swapped if the
 	 * copy to
 	 * sos arg is set */
+
+	/* Cache cleaning needs to be looked at; it might not need to be flushed
+	 * here */
 	seL4_ARM_Page_CleanInvalidate_Data(pte->frame->cap, 0, PAGE_SIZE_4K);
 	seL4_ARM_Page_CleanInvalidate_Data(pte->cap, 0, PAGE_SIZE_4K);
 	trace(2);

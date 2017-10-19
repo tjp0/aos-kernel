@@ -119,8 +119,6 @@ static struct frame* frame_physical_alloc(void) {
 	pte_untrack(pte);
 	trace(5);
 	struct frame* newframe = vaddr_to_frame(paddr_to_vaddr(new_frame_addr));
-	kassert(newframe->debug_check != DEBUG_VAL);
-	newframe->debug_check = DEBUG_VAL;
 	trace(5);
 	newframe->cap = new_frame_cap;
 	trace(5);
@@ -131,8 +129,6 @@ static struct frame* frame_physical_alloc(void) {
 static int frame_physical_free(struct frame* frame) {
 	kassert(frame != NULL);
 	kassert(frame->cap != 0);
-	kassert(frame->debug_check = DEBUG_VAL);
-	frame->debug_check = 0;
 	dprintf(4, "Physical Freeing frame: %08x\n", frame_to_vaddr(frame));
 	cspace_delete_cap(cur_cspace, frame->cap);
 	ut_free(frame_to_paddr(frame), seL4_PageBits);

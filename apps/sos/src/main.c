@@ -178,11 +178,11 @@ struct syscall_return handle_syscall(struct process* process) {
 			err = syscall_process_debug(process, arg1);
 		} break;
 		default: {
-			printf("%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
-				   __func__, syscall_number);
-			/* we don't want to reply to an unknown syscall, so short circuit
-			 * here */
-			return retu;
+			dprintf(0, "%s:%d (%s) Unknown syscall %d\n", __FILE__, __LINE__,
+					__func__, syscall_number);
+
+			/* all other roads lead to syscall_exit... */
+			err = syscall_process_exit(process, 0);
 		}
 	}
 	/* Process is dead, and there's nothing to return to

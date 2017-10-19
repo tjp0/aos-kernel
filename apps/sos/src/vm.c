@@ -19,6 +19,7 @@ static struct lock* paging_lock;
 static struct page_table_entry* clock_pointer;
 
 static struct frame* frame_alloc_swap();
+static int vm_swapout(struct page_table_entry* pte);
 void pte_free(struct page_table_entry* pte);
 static int pd_map_page(struct page_directory* pd, struct page_table_entry* page,
 					   seL4_ARM_Page pte_cap);
@@ -247,6 +248,7 @@ void pd_free(struct page_directory* pd) {
 	free(pd);
 }
 
+/* Walks the two level pagetable to find the page */
 struct page_table_entry* pd_getpage(struct page_directory* pd,
 									vaddr_t address) {
 	trace(6);
@@ -269,6 +271,8 @@ struct page_table_entry* pd_getpage(struct page_directory* pd,
 	return pte;
 }
 
+/* Walks the pagedirectory; inserting a new pagetable if required
+ * to insert the new PTE, and then maps it in */
 struct page_table_entry* pd_createpage(struct page_directory* pd,
 									   vaddr_t address, uint8_t flags,
 									   seL4_ARM_Page pte_cap) {
@@ -306,6 +310,8 @@ struct page_table_entry* pd_createpage(struct page_directory* pd,
 			return NULL;
 		}
 		pt->ptes[vaddr_to_pteoffset(address)] = pte;
+		/* We don't count "special" pages as part of our
+		 * budget :) */
 		if (pte_cap == 0) {
 			pd->num_ptes++;
 		}
@@ -475,6 +481,8 @@ int vm_swapin(struct page_table_entry* pte) {
 		trace(4);
 		goto fail1;
 	}
+	/* Another case of needing to look into caching rules on the cortex A9 more
+	 */
 	seL4_ARM_Page_Unify_Instruction(pte->cap, 0, PAGE_SIZE_4K);
 	seL4_ARM_Page_CleanInvalidate_Data(pte->cap, 0, PAGE_SIZE_4K);
 
@@ -544,6 +552,8 @@ struct syscall_return sos_handle_vmfault(struct process* process) {
 				process_signal_kill(process);
 				return retu;
 			}
+			/* Page hasn't recently been accessed, so the clock replacement algo
+			 * set it to be inaccessable; so fix that */
 		} else if (vm_pageismarked(pte)) {
 			trace(5);
 			pte->flags |= PAGE_ACCESSED;
