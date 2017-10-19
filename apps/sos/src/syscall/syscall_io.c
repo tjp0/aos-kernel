@@ -67,6 +67,7 @@ int syscall_read(struct process* process, int fdnum, vaddr_t ptr, int length) {
     if (!(r->perm & PAGE_WRITABLE)) { 
         return -1; 
     }
+
     //if (flags & COPY_VSPACE2SOS) {
     //    dprintf(1, "** vspace2sos: checking readable: %p\n", (void *) r->perm);
     //    if (!(r->perm & PAGE_READABLE)) { return -1; }
@@ -98,10 +99,27 @@ int syscall_read(struct process* process, int fdnum, vaddr_t ptr, int length) {
 
 int syscall_stat(struct process* process, vaddr_t filebuf, vaddr_t statbuf) {
 	trace(5);
+
+    region_list *rl = process->vspace.regions;
+    if (!rl) { 
+        return -1; 
+    }
+
+    region_node *r = find_region(rl, statbuf);
+    if (!r) { 
+        return -1; 
+    }
+
+    /* check ptr is in a writable region */
+    if (!(r->perm & PAGE_WRITABLE)) { 
+        return -1; 
+    }
+
 	char filename[N_NAME + 1];
 	filename[N_NAME] = '\0';
 	if (copy_vspace2sos(filebuf, filename, &process->vspace, N_NAME,
-						COPY_RETURNWRITTEN) < 0) {
+						0) < 0) {
+						// COPY_RETURNWRITTEN) < 0) {
 		trace(5);
 		return -1;
 	}
@@ -168,5 +186,21 @@ int syscall_getdirent(struct process* process, int pos, vaddr_t name,
 	if (!name) {
 		return -1;
 	}
+
+    region_list *rl = process->vspace.regions;
+    if (!rl) { 
+        return -1; 
+    }
+
+    region_node *r = find_region(rl, name);
+    if (!r) { 
+        return -1; 
+    }
+
+    /* check ptr is in a writable region */
+    if (!(r->perm & PAGE_WRITABLE)) { 
+        return -1; 
+    }
+
 	return nfs_dev_getdirent(&process->vspace, pos, name, nbytes);
 }
