@@ -208,6 +208,7 @@ int nfs_dev_getdirent(struct vspace* vspace, int pos, vaddr_t name,
 	dprintf(0, "Found dir entity %s\n", str);
 
 	if (len > nbyte) {
+		free(copy);
 		return -1;
 	}
 
