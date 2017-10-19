@@ -328,10 +328,15 @@ void process_errors() {
 
 void crash_errors() {
 	// printf("%c\n", *((char *)NULL));
-	//*((char *)NULL) = 2;
-	//*"Read only string" = 13;
-	printf("%c\n", *((char *)sbrk(0)));
-	//*((char *)sbrk(0)) = 2;
+	// *((char *)NULL) = 2;
+	// *"Read only string" = 13;            /* this doesn't crash, but,
+	// char *ro = "Read only string";        * <--  this version of it does
+	// crash */
+	// *ro = 13;
+	// printf("ro: %p\n", ro);
+	// printf("sbrk: %p\n", (void *) sbrk(0));
+	// printf("%c\n", *((char *)sbrk(0)));  /* not sure why this would crash. */
+	//*((char *)sbrk(0)) = 2;               /* not sure why this would crash. */
 }
 
 int main(void) {
@@ -356,24 +361,25 @@ int main(void) {
 	// 	printf("File error tests passed.\n");
 
 	/* memory tests */
-	printf("Running memory error tests.\n");
-	printf("Warning: Here be implementation specific dragons.\n");
-	memory_errors();
-	printf("Memory error tests passed.\n");
+	// 	printf("Running memory error tests.\n");
+	// 	printf("Warning: Here be implementation specific dragons.\n");
+	// 	memory_errors();
+	// 	printf("Memory error tests passed.\n");
 
 	/* process error tests */
-	// 	printf("Running process error tests.\n");
-	// 	process_errors();
-	// 	printf("Process error tests passed.\n");
+	/* TODO run these */
+	// printf("Running process error tests.\n");
+	// process_errors();
+	// printf("Process error tests passed.\n");
 
 	// TODO(karl): Write share vm tests.
 
 	/* crash tests */
-	// 	printf(
-	// 		"Running crash tests. You need to manually comment out individual "
-	// 		"lines.\n");
-	// 	crash_errors();
-	// 	assert(!"Crash tests failed you should never get here!\n");
+	// printf(
+	// "Running crash tests. You need to manually comment out individual "
+	// "lines.\n");
+	// crash_errors();
+	// assert(!"Crash tests failed you should never get here!\n");
 
 	printf("testing done. good job!\n");
 
