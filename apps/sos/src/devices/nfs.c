@@ -169,6 +169,8 @@ int nfs_dev_getdirent(struct vspace* vspace, int pos, vaddr_t name,
 					  size_t nbyte) {
 	/* This is really slow if there's a lot of files, with many round trips, but
 	 * readdir is a relatively unused operation */
+	dprintf(0, "vspace: %p, pos: %d, name: %d, nbyte: %d\n", (void*)vspace, pos,
+			name, nbyte);
 	nfscookie_t cookie = 0;
 	struct nfs_readdir_callback_t* cb;
 	while (1) {
@@ -179,6 +181,10 @@ int nfs_dev_getdirent(struct vspace* vspace, int pos, vaddr_t name,
 			return -1;
 		}
 		cb = yield(NULL);
+
+		if (cb->status != NFS_OK) {
+			return -1;
+		}
 
 		if (cb->num_files == 0) {
 			return 0;
@@ -201,8 +207,13 @@ int nfs_dev_getdirent(struct vspace* vspace, int pos, vaddr_t name,
 	copy[nbyte - 1] = '\0';
 	dprintf(0, "Found dir entity %s\n", str);
 
-	return copy_sos2vspace(copy, name, vspace, (nbyte < len ? nbyte : len),
-						   COPY_RETURNWRITTEN);
+	if (len > nbyte) {
+		return -1;
+	}
+
+	int err = copy_sos2vspace(copy, name, vspace, len, 0);
+	free(copy);
+	return err;
 }
 
 struct nfs_fd_data {
@@ -214,14 +225,14 @@ static int nfs_dev_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 						size_t length) {
 	trace(2);
 
-    /* check ptr and ptr+length are in the same region */
-    // region_list *rl = vspace->regions;
-    // region_node *r = find_region(rl, procbuf);
-    // uint32_t r_size = r->vaddr + r->size;
-    // uint32_t r_size_remaining = r_size - procbuf;
-    // if (length > r_size_remaining) {
-        // return -1;
-    // }
+	/* check ptr and ptr+length are in the same region */
+	// region_list *rl = vspace->regions;
+	// region_node *r = find_region(rl, procbuf);
+	// uint32_t r_size = r->vaddr + r->size;
+	// uint32_t r_size_remaining = r_size - procbuf;
+	// if (length > r_size_remaining) {
+	// return -1;
+	// }
 
 	char buffer[NFS_BUFFER_SIZE];
 	kassert(fd != NULL);
@@ -450,7 +461,7 @@ int nfs_dev_open(struct fd* fd, char* name, int flags) {
 	fd->dev_read = &nfs_dev_read;
 	fd->dev_close = &nfs_dev_close;
 	fd->dev_write = &nfs_dev_write;
-    fd->flags = flags;
+	fd->flags = flags;
 	return 0;
 }
 
