@@ -532,10 +532,12 @@ static void* sos_main(void* na) {
 	process_init();
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
 	trace(5);
-	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
+	conditional_panic(
+		nfs_dev_init() < 0,
+		"NFS init failed. Is the configured NFS directory mountable ?");
 	trace(5);
-	trace(5);
-	conditional_panic(swap_init() < 0, "Swap init failed");
+	conditional_panic(swap_init() < 0,
+					  "Swap init failed. Was NFS set and mounted correctly ?");
 	trace(5);
 	any_pid_exit_signal = semaphore_create();
 	if (any_pid_exit_signal == NULL) {

@@ -20,6 +20,7 @@ static struct page_table_entry* clock_pointer;
 
 static struct frame* frame_alloc_swap();
 static int vm_swapout(struct page_table_entry* pte);
+static int vm_swapin(struct page_table_entry* pte);
 void pte_free(struct page_table_entry* pte);
 static int pd_map_page(struct page_directory* pd, struct page_table_entry* page,
 					   seL4_ARM_Page pte_cap);
@@ -447,7 +448,7 @@ static int vm_swapout(struct page_table_entry* pte) {
 	trace(5);
 	return 0;
 }
-int vm_swapin(struct page_table_entry* pte) {
+static int vm_swapin(struct page_table_entry* pte) {
 	trace(4);
 	LOCK(paging_lock);
 	kassert(pte != NULL);

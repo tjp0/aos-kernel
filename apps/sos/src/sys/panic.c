@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define verbose 0
+#define verbose 1
 
 inline void __conditional_panic(int condition, const char *message,
 								const char *file, const char *func, int line) {

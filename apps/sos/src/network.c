@@ -210,13 +210,14 @@ void network_init(seL4_CPtr interrupt_ep) {
 	 */
 	network_prime_arp(&gw);
 	trace(5);
-	/* initialise and mount NFS */
+
+	/* We do our own NFS mounting later on */
+
+	/*
 	if (strlen(SOS_NFS_DIR)) {
-		/* Initialise NFS */
 		int err;
 		printf("\nMounting NFS\n");
 		if (!(err = nfs_init(&gw))) {
-			/* Print out the exports on this server */
 			nfs_print_exports();
 			if ((err = nfs_mount(SOS_NFS_DIR, &mnt_point))) {
 				printf("Error mounting path '%s'!\n", SOS_NFS_DIR);
@@ -225,11 +226,11 @@ void network_init(seL4_CPtr interrupt_ep) {
 			}
 		}
 		if (err) {
-			WARN("Failed to initialise NFS\n");
+			panic("Failed to initialise NFS\n");
 		}
 	} else {
-		WARN(
+		panic(
 			"Skipping Network initialisation since no mount point was "
-			"specified\n");
-	}
+			"specified. SOS cannot operate without NFS configured\n");
+	} */
 }

@@ -121,15 +121,16 @@ int nfs_dev_init(void) {
 		nfs_print_exports();
 	}
 	trace(5);
+	printf("\nMounting NFS\n");
 	ret = nfs_mount(CONFIG_SOS_NFS_DIR, &mounted_fs);
 	trace(5);
 	if (ret != RPC_OK) {
 		trace(5);
-		dprintf(0, "NFS failed to mount, ret: %u\n", ret);
+		printf("Error mounting path '%s'!\n", CONFIG_SOS_NFS_DIR);
 		return -1;
 	}
 	trace(5);
-	dprintf(0, "NFS share mounted\n");
+	printf("\nSuccessfully mounted '%s'\n", CONFIG_SOS_NFS_DIR);
 	return 0;
 };
 
