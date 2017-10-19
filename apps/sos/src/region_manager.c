@@ -135,6 +135,8 @@ region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 
 	region_node* cur = reg_list->start;
 
+	kassert(find_region(reg_list,addr) == NULL);
+
 	region_node* new_node =
 		make_region_node(addr, size, perm, load_page, clean_page, data);
 	if (new_node == NULL) {
@@ -180,20 +182,6 @@ region_node* find_region(region_list* list, vaddr_t addr) {
 	return NULL;
 }
 
-// Probably to expand the stack
-int expand_left(region_node* node, vaddr_t address) {
-	address = PAGE_ALIGN_4K(address);
-
-	region_node* neighbor = node->prev;
-
-	if (address < neighbor->vaddr + neighbor->size + REGION_SAFETY) {
-		return REGION_FAIL;
-	}
-
-	node->vaddr -= address;
-	return REGION_GOOD;
-}
-
 // Probably to expand the heap
 int expand_right(region_node* node, uint32_t size) {
 	kassert(IS_ALIGNED_4K(size));
@@ -206,9 +194,6 @@ int expand_right(region_node* node, uint32_t size) {
 	return REGION_GOOD;
 }
 
-int in_stack_region(region_node* node, vaddr_t vaddr) {
-	return (vaddr > node->prev->vaddr + node->prev->size + REGION_SAFETY);
-}
 
 /* Call this after the elf has been loaded to place the heap effectively */
 region_node* create_heap(region_list* region_list) {
@@ -237,16 +222,17 @@ region_node* create_mmap(region_list* region_list, uint32_t size,
 	size = PAGE_ALIGN_4K(size + PAGE_SIZE_4K - 1);
 	uint32_t capacity = 0;
 	region_node* selected = stack;
-	while (selected && capacity < size + REGION_SAFETY * 2) {
+	while (selected && capacity < (size + REGION_SAFETY * 2)) {
 		capacity =
 			selected->vaddr - (selected->prev->vaddr + selected->prev->size);
+		dprintf(3, "Region at 0x%08x has capacity %08x\n",selected->prev->vaddr, capacity);
 		selected = selected->prev;
 	}
 	if (!selected) {
 		return NULL;
 	}
 
-	vaddr_t region_start = selected->vaddr + capacity - REGION_SAFETY - size;
+	vaddr_t region_start = selected->vaddr + selected->size + capacity - REGION_SAFETY - size;
 	dprintf(2, "Creating new region at 0x%08x to 0x%08x\n", region_start,
 			region_start + size);
 	region_node* ret =
@@ -288,7 +274,7 @@ void regions_print(region_list* regions) {
 
 int region_remove(region_list* regions, struct process* process,
 				  vaddr_t vaddr) {
-	region_node* node = findspot(regions->start, vaddr);
+	region_node* node = find_region(regions, vaddr);
 	if (node == NULL) {
 		return VM_FAIL;
 	}

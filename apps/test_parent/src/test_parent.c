@@ -13,8 +13,7 @@
 /* Your OS header file */
 #include <sos.h>
 
-#define NUM_CHILDREN 3
-
+#define NUM_CHILDREN 18
 int main(int argc, char const *argv[]) {
 	printf("Starting up parent process");
 

@@ -10,7 +10,7 @@
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #define STACK_ALIGNMENT 8 /* Stacks must be aligned to 8 bytes */
-#define STACK_SIZE 4096 * 8
+#define STACK_SIZE 4096 * 3
 
 #pragma GCC push_options
 #pragma GCC optimize("O0")
@@ -40,7 +40,7 @@ struct coroutine* current_coro(void) {
 	return current;
 }
 
-int resumable(struct coroutine* coro) { return (coro && coro->next == NULL); }
+int resumable(struct coroutine* coro) { kassert(coro->debug == DEBUG_VAL);return (coro && coro->next == NULL); }
 /* Used for argument passing between routines */
 static void* volatile pass_arg;
 
@@ -130,7 +130,7 @@ struct coroutine* coroutine_create(struct process* process) {
 			process->name, process->pid);
 	return ret_co;
 }
-bool coro_idle(struct coroutine* coro) { return coro->idle; }
+bool coro_idle(struct coroutine* coro) { kassert(coro->debug == DEBUG_VAL);return coro->idle; }
 struct process* current_process(void) {
 	return current->process;
 }

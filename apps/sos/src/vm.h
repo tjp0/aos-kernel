@@ -76,7 +76,7 @@ struct page_table_entry* sos_map_page(struct page_directory* pd,
 									  vaddr_t address, uint8_t permissions,
 									  seL4_ARM_Page pte_cap);
 
-void sos_handle_vmfault(struct process* process);
+struct syscall_return sos_handle_vmfault(struct process* process);
 
 bool vm_pageisloaded(struct page_table_entry* pte);
 int vm_swapin(struct page_table_entry* pte);

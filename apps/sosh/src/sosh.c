@@ -46,6 +46,23 @@ static int __exit(int argc, char **argv) {
 	return 0;
 }
 
+static int spam(int argc, char **argv) {
+	pid_t children[100] = { };
+	srand(0);
+	while(1) {
+		pid_t p = sos_process_create(argv[1]);
+		if(p > 0) {
+			children[p] = p;
+		}
+		int index = rand()%100;
+		if(children[index] != 0) {
+			sos_process_delete(index);
+			children[index] = 0;
+		}
+	}
+	return 0;
+}
+
 static int debug(int argc, char **argv) {
 	if (argc != 2) {
 		printf("Usage: debug PID\n");
@@ -358,6 +375,7 @@ struct command commands[] = {{"dir", dir},
 							 {"wait", wait},
 							 {"thrash", thrash},
 							 {"debug", debug},
+							 {"spam", spam},
 							 {"exit", __exit}};
 
 int main(void) {

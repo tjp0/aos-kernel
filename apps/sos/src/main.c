@@ -33,6 +33,7 @@
 #include <autoconf.h>
 #include <copy.h>
 #include <devices/devices.h>
+#include <typedefs.h>
 #include <frametable.h>
 #include <globals.h>
 #include <libcoro.h>
@@ -49,7 +50,7 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 4
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -95,9 +96,8 @@ static void* _sos_late_init(void* unusedarg);
  */
 extern fhandle_t mnt_point;
 
-void handle_syscall(struct process* process) {
+struct syscall_return handle_syscall(struct process* process) {
 	seL4_Word syscall_number;
-	seL4_CPtr reply_cap;
 
 	struct ipc_command ipc = ipc_create();
 	ipc_unpacki(&ipc, &syscall_number);
@@ -117,9 +117,9 @@ void handle_syscall(struct process* process) {
 	ipc_unpacki(&ipc, &arg3);
 	ipc_unpacki(&ipc, &arg4);
 
+	struct syscall_return retu = { .valid  = false};
+
 	/* Save the caller */
-	reply_cap = cspace_save_reply_cap(cur_cspace);
-	assert(reply_cap != CSPACE_NULL);
 	/* Process system call */
 	dprintf(
 		2, "SYSCALL: %d from proc (%s:%u) with args: (%08x %08x %08x %08x)\n",
@@ -188,17 +188,14 @@ void handle_syscall(struct process* process) {
 				   __func__, syscall_number);
 			/* we don't want to reply to an unknown syscall, so short circuit
 			 * here */
-			cspace_delete_cap(cur_cspace, reply_cap);
-			return;
+			return retu;
 		}
 	}
 	/* Process is dead, and there's nothing to return to
 	 * so just free the reply cap */
-	if (process->status != PROCESS_ALIVE) {
+	if (process->status == PROCESS_ZOMBIE) {
 		trace(0);
-		cspace_free_slot(cur_cspace, reply_cap);
-		trace(0);
-		return;
+		return retu;
 	}
 
 	dprintf(2,
@@ -207,17 +204,14 @@ void handle_syscall(struct process* process) {
 			syscall_number, process->name, process->pid, err, ret1, ret2, ret3,
 			ret4);
 
-	/* Respond to the syscall */
-	ipc = ipc_create();
-	ipc_packi(&ipc, err);
-	ipc_packi(&ipc, ret1);
-	ipc_packi(&ipc, ret2);
-	ipc_packi(&ipc, ret3);
-	ipc_packi(&ipc, ret4);
-	ipc_send(&ipc, reply_cap);
 
-	/* Free the saved reply cap */
-	cspace_free_slot(cur_cspace, reply_cap);
+	retu.valid = true;
+	retu.err = err;
+	retu.arg1 = arg1;
+	retu.arg2 = arg2;
+	retu.arg3 = arg3;
+	retu.arg4 = arg4;
+	return retu;
 }
 
 struct event {
@@ -269,6 +263,7 @@ static void* handle_event(void* e) {
 			if (process->status != PROCESS_ALIVE) {
 				return 0;
 			}
+			kassert(process->name != NULL);
 
 			/* If this was a syscall by a process, run it in that
 			 * process's coroutine */
@@ -283,6 +278,7 @@ static void* handle_event(void* e) {
 			kassert(coro_idle(c));
 			coroutine_start(c, handle_process_event);
 			resume(c, e);
+
 		} else {
 			printf("Rootserver got an unknown message\n");
 		}
@@ -293,16 +289,19 @@ static void* handle_process_event(void* event_ptr) {
 	struct event event = *((struct event*)event_ptr);
 	seL4_Word badge = event.badge;
 	seL4_Word label = event.label;
-
+	seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
+	struct syscall_return retu;
+	dprintf(3, "PROCESS EVENT\n");
 	/* This is called by process_event, so process is valid */
 	struct process* process = get_process(badge);
 	if (label == seL4_VMFault) {
 		dprintf(3, "VMFAULT\n");
-		sos_handle_vmfault(process);
+		retu = sos_handle_vmfault(process);
+		dprintf(3, "VMFAULT RET\n");
 
 	} else if (label == seL4_NoFault) {
 		/* System call */
-		handle_syscall(process);
+		retu = handle_syscall(process);
 	}
 	/* The process has indicated it wants to die */
 	if (process->status == PROCESS_TO_DIE) {
@@ -313,6 +312,26 @@ static void* handle_process_event(void* event_ptr) {
 	kassert(process->status == PROCESS_ZOMBIE ||
 			process->status == PROCESS_ALIVE);
 	signal(process->event_finished_syscall, NULL);
+
+	/* Respond to the syscall */
+	struct ipc_command ipc = ipc_create();
+	ipc_packi(&ipc, retu.err);
+	ipc_packi(&ipc, retu.arg1);
+	ipc_packi(&ipc, retu.arg2);
+	ipc_packi(&ipc, retu.arg3);
+	ipc_packi(&ipc, retu.arg4);
+
+	if(process->status != PROCESS_ZOMBIE) {
+			if(retu.valid) {
+				ipc_send(&ipc, reply_cap);
+				cspace_free_slot(cur_cspace, reply_cap);
+			} else {
+				cspace_delete_cap(cur_cspace, reply_cap);
+			}
+	} else {
+		cspace_free_slot(cur_cspace, reply_cap);
+	}
+	dprintf(3, "PROCESS EVENT RET\n");
 	return NULL;
 }
 

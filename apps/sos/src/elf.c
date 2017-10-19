@@ -76,7 +76,7 @@ static int load_file_from_nfs(region_node *reg, struct vspace *vspace,
 	uint32_t max_space = PAGE_SIZE_4K - first_offset;
 	uint32_t file_size_left = 0;
 
-	dprintf(3, "segfile: %08x, curof: %08x, sstart: %08x, sizein: %08x\n",
+dprintf(3, "segfile: %08x, curof: %08x, sstart: %08x, sizein: %08x\n",
 			ref->size_of_segment_file, file_offset, ref->file_seg_start,
 			file_offset - ref->file_seg_start);
 	if (ref->size_of_segment_file >= (file_offset - ref->file_seg_start)) {
@@ -189,9 +189,9 @@ int elf_load(struct process *process, char *elf_path) {
 		return -1;
 	}
 	trace(5);
-	struct fd fd;
+	struct fd fd = { };
 	dprintf(2, "Opening ELF from %s\n", elf_path);
-	if (nfs_dev_open(&fd, elf_path, FM_READ) < 0) {
+	if (nfs_dev_open(&fd, elf_path, O_RDONLY) < 0) {
 		free(elf_file);
 		trace(5);
 		return -1;

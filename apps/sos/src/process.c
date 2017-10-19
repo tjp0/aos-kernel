@@ -17,7 +17,7 @@
 #include "sos_coroutine.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
-#define verbose 10
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -176,11 +176,10 @@ struct process* process_create(char* app_name) {
 	dprintf(0, "*** Loading ELF ***\n");
 	err = elf_load(process, app_name);
 	if (err) {
+		dprintf(0, "*** FAILED TO LOAD ELF ***\n");
 		goto err11;
 	}
 	dprintf(0, "*** ELF Loaded ***\n");
-
-	/* Stack should be automagically mapped in as the process requires it */
 
 	/* Map in the IPC buffer for the thread */
 
@@ -223,9 +222,11 @@ struct process* process_create(char* app_name) {
 		goto err15;
 	}
 
+	trace(5);
 	serial_open(&process->fds.fds[1], O_WRONLY);
 	serial_open(&process->fds.fds[2], O_WRONLY);
 
+	trace(5);
 	process->coroutine = coroutine_create(process);
 	if (process->coroutine == NULL) {
 		goto err16;

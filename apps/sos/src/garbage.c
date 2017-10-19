@@ -25,7 +25,6 @@ void add_garbage_coroutine(coro c) {
 static int garbage_coroutine_clean(void* c) {
 	kassert(c != NULL);
 	coro co = (coro)c;
-	regions_print(sos_process.vspace.regions);
 	dprintf(5, "Garbage got coro: %p\n", co);
 	if (coro_idle(co)) {
 		dprintf(5, "Garbage freeing coro: %p\n", co);

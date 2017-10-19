@@ -5,7 +5,7 @@
 #include <syscall/syscall_memory.h>
 #include <utils/page.h>
 #include <vm.h>
-#define verbose 2
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>

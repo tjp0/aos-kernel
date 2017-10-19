@@ -502,14 +502,13 @@ void print_fault(struct fault f) {
 	}
 }
 
-void sos_handle_vmfault(struct process* process) {
+struct syscall_return sos_handle_vmfault(struct process* process) {
 	assert(process != NULL);
 	trace(5);
 	/* Page fault */
 	struct fault fault = fault_struct();
 
-	seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
-	kassert(reply_cap != CSPACE_NULL);
+	struct syscall_return retu = { };
 
 	struct page_table_entry* pte =
 		pd_getpage(process->vspace.pagetable, fault.vaddr);
@@ -523,10 +522,7 @@ void sos_handle_vmfault(struct process* process) {
 			if (err != VM_OKAY) {
 				dprintf(0, "Out of memory\n");
 				process_signal_kill(process);
-				trace(0);
-				cspace_free_slot(cur_cspace, reply_cap);
-				trace(0);
-				return;
+				return retu;
 			}
 		} else if (vm_pageismarked(pte)) {
 			trace(5);
@@ -537,15 +533,13 @@ void sos_handle_vmfault(struct process* process) {
 			trace(5);
 			dprintf(0, "Invalid memory permissions for process\n");
 			dprint_fault(0, fault);
+			trace(5);
 			process_signal_kill(process);
-			cspace_free_slot(cur_cspace, reply_cap);
-			return;
+			return retu;
 		}
-		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
-		seL4_Send(reply_cap, reply);
 		trace(5);
-		cspace_free_slot(cur_cspace, reply_cap);
-		return;
+		retu.valid = true;
+		return retu;
 	}
 
 	/* If the page doesn't exist in the pagetable */
@@ -559,23 +553,18 @@ void sos_handle_vmfault(struct process* process) {
 			trace(0);
 			process_signal_kill(process);
 			trace(0);
-			cspace_free_slot(cur_cspace, reply_cap);
-			trace(0);
-			return;
+			return retu;
 		}
-		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
-		seL4_Send(reply_cap, reply);
+		retu.valid = true;
+		return retu;
 	} else {
 		trace(5);
 		print_fault(fault);
 		regions_print(process->vspace.regions);
 		printf("Unable to handle process fault\n");
 		process_signal_kill(process);
-		cspace_free_slot(cur_cspace, reply_cap);
-		return;
+		return retu;
 	}
-
-	cspace_free_slot(cur_cspace, reply_cap);
 }
 
 static int vm_updatepage(struct page_table_entry* pte) {
