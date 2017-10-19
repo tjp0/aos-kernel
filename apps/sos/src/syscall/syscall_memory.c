@@ -9,6 +9,7 @@
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
+
 uint32_t syscall_sbrk(struct process* process, uint32_t size) {
 	dprintf(3, "process addr in sbrk: %08x\n", (unsigned int)process);
 	assert(process != NULL);
@@ -20,6 +21,11 @@ uint32_t syscall_sbrk(struct process* process, uint32_t size) {
 	trace(3);
 	vaddr_t old_sbrk = process->vspace.sbrk;
 	vaddr_t new_sbrk = old_sbrk + size;
+	bool overflow = __builtin_add_overflow(old_sbrk, size, &new_sbrk);
+	if (overflow) {
+		dprintf(1, "** overflow\n");
+		return 0;
+	}
 	trace(3);
 	if (new_sbrk > heap->vaddr + heap->size) {
 		trace(3);
@@ -40,6 +46,7 @@ uint32_t syscall_sbrk(struct process* process, uint32_t size) {
 
 	return old_sbrk;
 }
+
 uint32_t syscall_mmap(struct process* process, uint32_t size,
 					  uint32_t permissions) {
 	trace(5);
@@ -67,6 +74,7 @@ uint32_t syscall_mmap(struct process* process, uint32_t size,
 	dprintf(4, "Allocated new mmap region: 0x%08x\n", mapped_region->vaddr);
 	return mapped_region->vaddr;
 }
+
 uint32_t syscall_munmap(struct process* process, vaddr_t vaddr) {
 	kassert(vaddr != 0);
 	dprintf(0, "Unmapping region at %08x\n", vaddr);

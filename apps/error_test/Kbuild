@@ -9,5 +9,4 @@
 #
 
 apps-$(CONFIG_APP_ERROR_TEST) += error_test
-
-error_test : $(libc) libsel4 libsos
+error_test: $(libc) libsel4 libsos

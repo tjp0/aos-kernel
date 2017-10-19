@@ -9,8 +9,8 @@
 #
 
 config APP_ERROR_TEST 
-	bool "Error test"
-	depends on LIB_SEL4 && HAVE_LIBC&& LIB_SOS 
-	select HAVE_SEL4_APPS 
-	help 
-		A set of tests to ensure that sos responds to invalid input correctly.
+    bool "Error test" 
+    depends on LIB_SEL4&& HAVE_LIBC && LIB_SOS 
+    select HAVE_SEL4_APPS 
+    help 
+        A set of tests to ensure that sos responds to invalid input correctly.

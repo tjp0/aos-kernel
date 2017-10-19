@@ -132,7 +132,7 @@ int serial_write(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 }
 
 static int serial_close(struct fd* fd) {
-	if (fd->flags & O_RDONLY || fd->flags & O_RDWR) {
+	if (fd->flags == O_RDONLY || fd->flags == O_RDWR) {
 		reader = 0;
 	}
 	fd->used = 0;
@@ -141,7 +141,9 @@ static int serial_close(struct fd* fd) {
 
 int serial_open(struct fd* fd, int flags) {
 	(void)flags;
-	if (reader == 1 && (flags & O_RDONLY || flags & O_RDWR)) {
+
+    /* check if console is already opened as O_RDONLY || O_RDWR */
+	if (reader == 1 && (flags == O_RDONLY || flags == O_RDWR)) {
 		return -1;
 	}
 	fd->used = 1;
@@ -150,7 +152,7 @@ int serial_open(struct fd* fd, int flags) {
 	fd->dev_close = &serial_close;
 	fd->flags = flags;
 
-	if (flags & O_RDONLY || flags & O_RDWR) {
+	if (flags == O_RDONLY || flags == O_RDWR) {
 		reader = 1;
 	}
 	return 0;
