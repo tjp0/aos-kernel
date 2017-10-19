@@ -87,6 +87,7 @@ static struct page_table* create_pt(struct page_directory* pd, vaddr_t address,
 		if (pt_addr == 0) {
 			goto fail3;
 		}
+		pt->paddr = pt_addr;
 		/* Create the frame cap */
 		err = cspace_ut_retype_addr(pt_addr, seL4_ARM_PageTableObject,
 									seL4_PageTableBits, cur_cspace, &pt_cap);
@@ -111,7 +112,6 @@ static struct page_table* create_pt(struct page_directory* pd, vaddr_t address,
 
 fail1:
 	cspace_delete_cap(cur_cspace, pt_cap);
-	return NULL;
 fail2:
 	ut_free(pt_addr, seL4_PageTableBits);
 fail3:
@@ -128,6 +128,7 @@ static void pt_free(struct page_table* pt) {
 		}
 	}
 	cspace_delete_cap(cur_cspace, pt->seL4_pt);
+	ut_free(pt->paddr, seL4_PageTableBits);
 	free(pt);
 }
 void pte_free(struct page_table_entry* pte) {
@@ -178,6 +179,7 @@ static struct page_table_entry* create_pte(struct page_directory* pd,
 	memset(pte, 0, sizeof(struct page_table_entry));
 	pte->address = address;
 	pte->flags = flags | PAGE_ACCESSED;
+
 	pte->cap = pte_cap;
 	pte->pd = pd;
 
@@ -205,13 +207,29 @@ static struct page_table_entry* create_pte(struct page_directory* pd,
 	return pte;
 }
 
-struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd) {
+struct page_directory* pd_create(seL4_CPtr existing_cap) {
 	struct page_directory* pd = malloc(sizeof(struct page_directory));
 	if (!pd) {
 		return NULL;
 	}
 	pd = memset(pd, 0, sizeof(struct page_directory));
-	pd->seL4_pd = seL4_pd;
+	pd->seL4_pd = existing_cap;
+	if (!existing_cap) {
+		pd->paddr = ut_alloc(seL4_PageDirBits);
+		if (pd->paddr == 0) {
+			free(pd);
+			return NULL;
+		}
+		int err =
+			cspace_ut_retype_addr(pd->paddr, seL4_ARM_PageDirectoryObject,
+								  seL4_PageDirBits, cur_cspace, &pd->seL4_pd);
+		if (err) {
+			ut_free(pd->paddr, seL4_PageDirBits);
+			free(pd);
+			return NULL;
+		}
+	}
+
 	pd->num_ptes = 0;
 	return pd;
 };
@@ -224,6 +242,8 @@ void pd_free(struct page_directory* pd) {
 			pt_free(pd->pts[i]);
 		}
 	}
+	cspace_delete_cap(cur_cspace, pd->seL4_pd);
+	ut_free(pd->paddr, seL4_PageDirBits);
 	free(pd);
 }
 
@@ -508,7 +528,7 @@ struct syscall_return sos_handle_vmfault(struct process* process) {
 	/* Page fault */
 	struct fault fault = fault_struct();
 
-	struct syscall_return retu = { };
+	struct syscall_return retu = {};
 
 	struct page_table_entry* pte =
 		pd_getpage(process->vspace.pagetable, fault.vaddr);

@@ -27,7 +27,6 @@ enum process_status {
 struct process {
 	seL4_Word tcb_addr;
 	seL4_TCB tcb_cap;
-	seL4_Word vroot_addr;
 	cspace_t* croot;
 	struct vspace vspace;
 	vaddr_t elfentry;

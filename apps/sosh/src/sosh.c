@@ -46,16 +46,28 @@ static int __exit(int argc, char **argv) {
 	return 0;
 }
 
-static int spam(int argc, char **argv) {
-	pid_t children[100] = { };
-	srand(0);
-	while(1) {
+static int loop(int argc, char **argv) {
+	while (1) {
 		pid_t p = sos_process_create(argv[1]);
-		if(p > 0) {
+		if (p < 0) {
+			printf("Failed to start process\n");
+			return 0;
+		}
+		sos_process_wait(p);
+	}
+	return 0;
+}
+
+static int spam(int argc, char **argv) {
+	pid_t children[100] = {};
+	srand(0);
+	while (1) {
+		pid_t p = sos_process_create(argv[1]);
+		if (p > 0) {
 			children[p] = p;
 		}
-		int index = rand()%100;
-		if(children[index] != 0) {
+		int index = rand() % 100;
+		if (children[index] != 0) {
 			sos_process_delete(index);
 			children[index] = 0;
 		}
@@ -376,6 +388,7 @@ struct command commands[] = {{"dir", dir},
 							 {"thrash", thrash},
 							 {"debug", debug},
 							 {"spam", spam},
+							 {"loop", loop},
 							 {"exit", __exit}};
 
 int main(void) {

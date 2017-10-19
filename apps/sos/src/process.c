@@ -111,23 +111,7 @@ struct process* process_create(char* app_name) {
 		goto err1_4;
 	}
 
-	/* Create a VSpace */
-	process->vroot_addr = ut_alloc(seL4_PageDirBits);
-	if (process->vroot_addr == 0) {
-		goto err1_5;
-	}
-	trace(5);
-	seL4_CPtr pd_cap;
-
-	err =
-		cspace_ut_retype_addr(process->vroot_addr, seL4_ARM_PageDirectoryObject,
-							  seL4_PageDirBits, cur_cspace, &pd_cap);
-	if (err) {
-		ut_free(process->vroot_addr, seL4_PageBits);
-		goto err2;
-	}
-
-	process->vspace.pagetable = pd_create(pd_cap);
+	process->vspace.pagetable = pd_create(0);
 	if (process->vspace.pagetable == NULL) {
 		goto err3;
 	}
@@ -276,10 +260,6 @@ err4:
 	trace(5);
 	pd_free(process->vspace.pagetable);
 err3:
-	trace(5);
-	cspace_delete_cap(cur_cspace, pd_cap);
-err2:
-err1_5:
 	trace(5);
 	semaphore_destroy(process->event_exited);
 err1_4:

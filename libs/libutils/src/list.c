@@ -114,18 +114,18 @@ int list_foreach_del(list_t *l, int (*action)(void *)) {
 		if (res != 0) {
 			if (prev) {
 				prev->next = n->next;
+				free(n);
+				n = n->next;
 			} else {
 				l->head = n->next;
 				prev = NULL;
+				free(n);
+				n = l->head;
 			}
-			free(n);
-			n = prev;
+		} else {
+			prev = n;
+			n = n->next;
 		}
-		if (!n) {
-			return 0;
-		}
-		n = n->next;
-		prev = n;
 	}
 	return 0;
 }

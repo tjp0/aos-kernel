@@ -22,10 +22,9 @@
 #define PAGE_SPECIAL (1 << 7)
 /* Don't cache memory mapped from this page */
 #define PAGE_NOCACHE (1 << 6)
-/* The flag that defines if the page has been recently accessed */
-#define PAGE_ZOMBIE (1 << 5)
 /* Pinned pages are allocated immediately and always kept in memory */
 #define PAGE_PINNED (1 << 4)
+/* The flag that defines if the page has been recently accessed */
 #define PAGE_ACCESSED (1 << 3)
 #define PAGE_EXECUTABLE (1 << 2)
 #define PAGE_WRITABLE (1 << 1)
@@ -51,11 +50,13 @@ struct page_table_entry {
 
 struct page_table {
 	seL4_ARM_PageTable seL4_pt;
+	seL4_Word paddr;
 	struct page_table_entry* ptes[PTES_PER_TABLE];
 };
 
 struct page_directory {
 	seL4_ARM_PageDirectory seL4_pd;
+	seL4_Word paddr;
 	struct page_table* pts[PTS_PER_DIRECTORY];
 	uint32_t num_ptes;
 };
@@ -64,7 +65,9 @@ struct page_directory {
 struct page_directory* pd_createSOS(seL4_ARM_PageDirectory seL4_pd,
 									const seL4_BootInfo* boot);
 
-struct page_directory* pd_create(seL4_ARM_PageDirectory seL4_pd);
+/* Creates a new PD (pdcap is only used for bootstrapping SOS. It should
+ * otherwise be unset */
+struct page_directory* pd_create(seL4_ARM_PageDirectory pdcap);
 void pd_free(struct page_directory* pd);
 void pte_free(struct page_table_entry* pte);
 

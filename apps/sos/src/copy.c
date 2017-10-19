@@ -5,7 +5,7 @@
 #include <string.h>
 #include <utils/page.h>
 #include <vm.h>
-#define verbose 1
+#define verbose 0
 #include <sys/debug.h>
 
 /* This function is called when the copy happens inside a single page */
@@ -77,8 +77,6 @@ static int copy_sos2vspace_withinpage(void* src, vaddr_t dest_vaddr,
 
 int64_t copy_sos2vspace(void* src, vaddr_t dest_vaddr, struct vspace* vspace,
 						int64_t len, uint32_t flags) {
-
-    
 	/* If passed a null vspace, we're doing an intra-sos copy */
 	if (vspace == NULL) {
 		if (flags & COPY_VSPACE2SOS) {
@@ -90,7 +88,6 @@ int64_t copy_sos2vspace(void* src, vaddr_t dest_vaddr, struct vspace* vspace,
 		}
 		return len;
 	}
-
 
 	int64_t start_len = len;
 	trace(2);

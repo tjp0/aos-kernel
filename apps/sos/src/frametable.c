@@ -21,7 +21,7 @@
 #define FRAME_CACHE_SIZE 30
 #define FRAME_CACHE_HIGH_WATER 20
 
-#define FRAME_RESERVED_PERCENT 95.0f
+#define FRAME_RESERVED_PERCENT 80.0f
 
 struct frame* frame_table = NULL;
 struct lock* frame_table_lock;
@@ -78,23 +78,25 @@ static struct frame* frame_physical_alloc(void) {
 
 	/* ft_numframes / 2 since ut_alloc is a simple buddy allocator
 	 * and that's the actual maximum number it will give us */
-	if (((float)frame_count / (ft_numframes/2)) > FRAME_RESERVED_PERCENT/100.0f) {
+	float utilization = (float)frame_count / (ft_numframes / 2) * 100.0f;
+	if (utilization > FRAME_RESERVED_PERCENT) {
 		return NULL;
 	}
+	dprintf(2, "%f used\n", utilization);
 	if (frame_count > CONFIG_SOS_DEBUG_FRAME_LIMIT &&
 		CONFIG_SOS_DEBUG_FRAME_LIMIT > 0) {
 		return NULL;
 	}
 
 	seL4_Word new_frame_addr = ut_alloc(seL4_PageBits);
-	kassert(paddr_to_frame(new_frame_addr) < &frame_table[ft_numframes]);
-	kassert(paddr_to_frame(new_frame_addr) > &frame_table[0]);
 	trace(5);
 	seL4_ARM_Page new_frame_cap;
 	if (new_frame_addr == 0) {
 		trace(5);
 		return NULL;
 	}
+	kassert(paddr_to_frame(new_frame_addr) < &frame_table[ft_numframes]);
+	kassert(paddr_to_frame(new_frame_addr) > &frame_table[0]);
 
 	kassert(new_frame_addr < highest_address);
 	/* Create the frame cap */

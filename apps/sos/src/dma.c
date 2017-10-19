@@ -27,7 +27,7 @@
 #include <ut_manager/ut.h>
 #include <vm.h>
 #include <vmem_layout.h>
-#define verbose 1
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>

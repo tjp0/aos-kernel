@@ -33,7 +33,6 @@
 #include <autoconf.h>
 #include <copy.h>
 #include <devices/devices.h>
-#include <typedefs.h>
 #include <frametable.h>
 #include <globals.h>
 #include <libcoro.h>
@@ -45,12 +44,13 @@
 #include <syscall/syscall_memory.h>
 #include <syscall/syscall_process.h>
 #include <syscall/syscall_time.h>
+#include <typedefs.h>
 #include <utils/arith.h>
 #include <utils/endian.h>
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 3
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -117,17 +117,12 @@ struct syscall_return handle_syscall(struct process* process) {
 	ipc_unpacki(&ipc, &arg3);
 	ipc_unpacki(&ipc, &arg4);
 
-	struct syscall_return retu = { .valid  = false};
+	struct syscall_return retu = {.valid = false};
 
-	/* Save the caller */
-	/* Process system call */
 	dprintf(
 		2, "SYSCALL: %d from proc (%s:%u) with args: (%08x %08x %08x %08x)\n",
 		syscall_number, process->name, process->pid, arg1, arg2, arg3, arg4);
 	switch (syscall_number) {
-		//		case SOS_SYSCALL_SERIALWRITE: {
-		//			err = syscall_serialwrite(process, arg1, arg2, &ret1);
-		//		} break;
 		case SOS_SYSCALL_SBRK: {
 			err = syscall_sbrk(process, arg1);
 		} break;
@@ -204,13 +199,12 @@ struct syscall_return handle_syscall(struct process* process) {
 			syscall_number, process->name, process->pid, err, ret1, ret2, ret3,
 			ret4);
 
-
 	retu.valid = true;
 	retu.err = err;
-	retu.arg1 = arg1;
-	retu.arg2 = arg2;
-	retu.arg3 = arg3;
-	retu.arg4 = arg4;
+	retu.arg1 = ret1;
+	retu.arg2 = ret2;
+	retu.arg3 = ret3;
+	retu.arg4 = ret4;
 	return retu;
 }
 
@@ -321,13 +315,13 @@ static void* handle_process_event(void* event_ptr) {
 	ipc_packi(&ipc, retu.arg3);
 	ipc_packi(&ipc, retu.arg4);
 
-	if(process->status != PROCESS_ZOMBIE) {
-			if(retu.valid) {
-				ipc_send(&ipc, reply_cap);
-				cspace_free_slot(cur_cspace, reply_cap);
-			} else {
-				cspace_delete_cap(cur_cspace, reply_cap);
-			}
+	if (process->status != PROCESS_ZOMBIE) {
+		if (retu.valid) {
+			ipc_send(&ipc, reply_cap);
+			cspace_free_slot(cur_cspace, reply_cap);
+		} else {
+			cspace_delete_cap(cur_cspace, reply_cap);
+		}
 	} else {
 		cspace_free_slot(cur_cspace, reply_cap);
 	}
@@ -432,7 +426,7 @@ int main(void) {
 	return 0;
 }
 
-/* Early initialization, before we switch stacks */
+/* Early initialization */
 static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	seL4_Word dma_addr;
 	seL4_Word low, high;
@@ -479,17 +473,11 @@ static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	if (verbose > 0) {
 		print_vmem_layout();
 	}
-	_sos_late_init(NULL);
-}
 
-/* After the stack is moved, finish initialization */
-static void* _sos_late_init(void* unusedarg) {
-	(void)unusedarg;
 	trace(5);
 	ft_initialize();
 
 	conditional_panic(vm_init() < 0, "VM init failed");
-	/* Initialiase other system compenents here */
 	_sos_ipc_init(&sos_syscall_cap, &sos_interrupt_cap);
 	/* Main will yield at some point, at which point we'll start the main event
 	 * loop *

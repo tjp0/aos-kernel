@@ -27,7 +27,7 @@ static int garbage_coroutine_clean(void* c) {
 	coro co = (coro)c;
 	dprintf(5, "Garbage got coro: %p\n", co);
 	if (coro_idle(co)) {
-		dprintf(5, "Garbage freeing coro: %p\n", co);
+		dprintf(4, "Garbage freeing coro: %p\n", co);
 		coroutine_free(co);
 		return 1;
 	}

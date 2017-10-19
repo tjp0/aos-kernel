@@ -36,7 +36,6 @@ uint32_t syscall_sbrk(struct process* process, uint32_t size) {
 		if (err != REGION_GOOD) {
 			dprintf(0, "sbrk fail\n");
 			dprintf(0, "Tried to sbrk 0x%08x bytes\n", size);
-			regions_print(process->vspace.regions);
 			return 0;
 		}
 	}

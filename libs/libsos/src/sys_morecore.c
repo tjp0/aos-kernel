@@ -41,9 +41,9 @@ long sys_brk_internal(uintptr_t newbrk) {
 		return dbrk;
 	} else {
 		// assert(newbrk >= dbrk);
-		if (newbrk >= dbrk) {
-			return 0;
-		}
+		// if (newbrk >= dbrk) {
+		//	return 0;
+		//}
 		long ret = sys_sbrk_internal(newbrk - dbrk);
 		if (ret == 0) {
 			return 0;

@@ -79,16 +79,6 @@ static inline uint32_t ts_getlower(void) {
 	return UINT32_MAX - (epit1_r->EPIT_CNR);
 }
 
-static uint32_t ts_upper = 0;
-static uint32_t last_cr = 0;
-static inline void time_stamp_wrap(void) {
-	uint32_t cur = ts_getlower();
-	if (last_cr > cur) {
-		ts_upper += 1;
-	}
-	last_cr = cur;
-}
-
 int timer_interrupt_epit1(void) {
 	epit1_r->EPIT_SR |= 1;
 	if (epit1_r->EPIT_CMPR == UINT32_MAX / 2) {
@@ -98,11 +88,6 @@ int timer_interrupt_epit1(void) {
 	}
 
 	int err = seL4_IRQHandler_Ack(epit1_irq_cap);
-
-	time_stamp_wrap();
-	// printf("ts upper: %u\n", ts_upper);
-	// printf("ts lower: %u\n", ts_getlower());
-	// printf("timestamp: %llu\n", time_stamp());
 	assert(!err);
 	return 0;
 }
@@ -140,17 +125,7 @@ int epit2_sleepto(timestamp_t timestamp) {
 	epit2_r->EPIT_SR |= 1;
 	epit2_r->EPIT_CR |= EPIT_CR_ENABLE;
 
-	// dprintf(0,"Sleeping until %lld. Current time is
-	// %lld\n",timestamp,curtime);
-
-	// If I comment out this line, the timer won't work unless you call this
-	// function twice
-	// dprintf(0,"(%lld) ticks, (%u) scaler\n",diff,scaler_bit+1);
-	// dprintf(0,"(%u)\n",diff);
 	dprintf(3, "(%lld)\n", diff);
-	// (void)diff;
-	// dprintf(0,"ticks, \n");
-
 	return 1;
 }
 
@@ -164,9 +139,15 @@ int timer_interrupt_epit2(void) {
 }
 
 timestamp_t time_stamp(void) {
-	// TODO: FIX RACE CONDITION
-	// USE OVERFLOW REGISTER
-	time_stamp_wrap();
-	return ((int64_t)ts_upper * UINT32_MAX + (uint64_t)ts_getlower()) /
+	static uint32_t ts_upper = 0;
+	static uint32_t last_cr = 0;
+
+	uint32_t cur = ts_getlower();
+	if (last_cr > cur) {
+		ts_upper += 1;
+	}
+	last_cr = cur;
+
+	return ((int64_t)ts_upper * UINT32_MAX + (uint64_t)cur) /
 		   TICKS_PER_MICROSECOND;
 }

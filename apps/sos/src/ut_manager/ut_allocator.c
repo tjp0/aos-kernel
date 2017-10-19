@@ -14,7 +14,7 @@
 #include "bitfield.h"
 #include "ut.h"
 
-#define verbose 1
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -392,12 +392,14 @@ seL4_Word ut_alloc(int sizebits) {
 	if (addr == 0) {
 		dprintf(0, "UT_ALLOC Reports out of memory\n");
 	}
+	dprintf(5, "	%p alloced %u\n", __builtin_return_address(0), addr);
 	return addr;
 }
 
 void ut_free(seL4_Word addr, int sizebits) {
 	assert(addr != 0);
 	assert((addr & ((1 << sizebits) - 1)) == 0 || !"Address not aligned");
+	dprintf(5, "	%p freed %u\n", __builtin_return_address(0), addr);
 
 	/* forward to appropriate functions */
 	switch (sizebits) {
