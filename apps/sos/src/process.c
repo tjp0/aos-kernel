@@ -55,7 +55,7 @@ static uint32_t get_new_pid(void) {
 	return 0;
 }
 
-struct process* get_process(int32_t pid) {
+struct process* get_process(uint32_t pid) {
 	if (pid > MAX_PROCESSES) {
 		return NULL;
 	}

@@ -35,14 +35,29 @@ uint32_t syscall_process_my_id(struct process* process) { return process->pid; }
 
 uint32_t syscall_process_status(struct process* process, vaddr_t processes,
 								unsigned max) {
+
+    region_list *rl = process->vspace.regions;
+    if (!rl) { 
+        return 0; 
+    }
+    region_node *r = find_region(rl, processes);
+    if (!r) { 
+        return 0; 
+    }
+
+    /* check ptr is in a writable region */
+    if (!(r->perm & PAGE_WRITABLE)) { 
+        return 0; 
+    }
+
 	unsigned int buf_size = max * sizeof(sos_process_t);
 
 	if (max == 0) {
-		return -1;
+		return 0;
 	}
 	sos_process_t* things = malloc(buf_size);
 	if (!things) {
-		return -1;
+		return 0;
 	}
 	memset(things, 0, buf_size);
 	uint32_t pid = 1;
@@ -82,9 +97,12 @@ uint32_t syscall_process_kill(struct process* process, uint32_t pid) {
 	if (pid == 0) {
 		return -1;
 	}
-	if (pid == 1) {
+
+    struct process *p = current_process();
+	if (pid == p->pid) {
 		syscall_process_exit(process, 0);
 	}
+
 	dprintf(0, "Killing pid %d \n", pid);
 	struct process* process_to_kill = get_process(pid);
 
@@ -100,6 +118,9 @@ static uint32_t wait_pid(uint32_t pid) {
 	if (pid == 0) {
 		return -1;
 	}
+    if (pid == current_process()->pid) {
+        return -1;
+    }
 	struct process* process_to_wait_on = get_process(pid);
 	if (!process_to_wait_on) {
 		return -1;
