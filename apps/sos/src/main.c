@@ -89,7 +89,6 @@ seL4_CPtr sos_interrupt_cap;
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
 static void* sos_main(void* unusedarg);
 static void _sos_early_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep);
-static void* _sos_late_init(void* unusedarg);
 
 /**
  * NFS mount point
