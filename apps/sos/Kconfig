@@ -52,7 +52,7 @@ config SOS_NFS_DIR
 config SOS_STARTUP_APP
     string "Startup application name"
     depends on APP_SOS
-    default "tty_test"
+    default "sosh"
 
 config SOS_PROCESS_MAX_STACK
 	int "The maximum size of a process's stack (bytes)"
