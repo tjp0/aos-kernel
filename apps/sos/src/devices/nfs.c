@@ -407,7 +407,7 @@ int nfs_dev_open(struct fd* fd, char* name, int flags) {
 	trace(2);
 	struct nfs_lookup_callback_t* cb = yield(NULL);
 
-	if (cb->status == NFSERR_NOENT && (flags & O_WRONLY || flags & O_RDWR)) {
+	if (cb->status == NFSERR_NOENT && (flags == O_WRONLY || flags == O_RDWR)) {
 		// create the file
 
 		sattr_t sat = {
