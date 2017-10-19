@@ -13,7 +13,7 @@
 /* Your OS header file */
 #include <sos.h>
 
-#define NUM_CHILDREN 14
+#define NUM_CHILDREN 16
 
 int main(int argc, char const *argv[]) {
 	printf("Starting up parent process");
@@ -34,6 +34,7 @@ int main(int argc, char const *argv[]) {
 		pids[i] = sos_process_create("test_child_inf");
 		printf("Created child %d\n", pids[i]);
 	}
+	printf("Onto phase 2!\n");
 
 	sos_process_create("test_child");
 	sos_process_create("test_child");

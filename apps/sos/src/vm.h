@@ -44,7 +44,6 @@ struct page_table_entry {
 	struct page_directory* pd;
 	struct page_table_entry* next;
 	struct page_table_entry* prev;
-	struct lock* lock;
 #ifdef VM_HEAVY_VETTING
 	uint32_t debug_check;
 #endif
@@ -79,7 +78,6 @@ struct page_table_entry* sos_map_page(struct page_directory* pd,
 
 void sos_handle_vmfault(struct process* process);
 
-int vm_swapout(struct page_table_entry* pte);
 bool vm_pageisloaded(struct page_table_entry* pte);
 int vm_swapin(struct page_table_entry* pte);
 int vm_swappage(void);

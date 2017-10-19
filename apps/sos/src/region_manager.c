@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <vm.h>
 #include <vmem_layout.h>
-#define verbose 5
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 

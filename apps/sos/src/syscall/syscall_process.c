@@ -26,7 +26,7 @@ uint32_t syscall_process_create(struct process* process, vaddr_t path) {
 
 uint32_t syscall_process_exit(struct process* process, uint32_t status) {
 	trace(5);
-	process_kill(process, status);
+	process_signal_kill(process);
 	return 0;
 }
 

@@ -10,7 +10,7 @@
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #define STACK_ALIGNMENT 8 /* Stacks must be aligned to 8 bytes */
-#define STACK_SIZE 4096 * 3
+#define STACK_SIZE 4096 * 8
 
 #pragma GCC push_options
 #pragma GCC optimize("O0")
@@ -99,7 +99,7 @@ static void* coroutine_run(void* arg) {
 		trace(5);
 		return NULL;
 	}
-	dprintf(5, "Resuming coro: %p\n", self);
+	dprintf(5, "Resuming coro: %p to call func: %p\n", self, func);
 	void* retfun = func(pass_arg);
 	dprintf(5, "Coro going idle: %p, <%s:%u>\n", self, self->process->name,
 			self->process->pid);
@@ -115,11 +115,16 @@ struct coroutine* coroutine_create(struct process* process) {
 	kassert(process != NULL);
 	void* stack = (void*)syscall_mmap(
 		&sos_process, STACK_SIZE, PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED);
-	if (!stack) {
+	if (stack == NULL) {
 		return NULL;
 	}
 
 	region_node* node = find_region(sos_process.vspace.regions, (vaddr_t)stack);
+	if (node == NULL) {
+		printf("%p\n", stack);
+		panic(
+			"We called mmap, but our returned pointer isn't in a region ? WTF");
+	}
 	node->name = process->name;
 
 	struct coroutine* ret_co = (struct coroutine*)ALIGN_DOWN(

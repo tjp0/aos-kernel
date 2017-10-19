@@ -49,7 +49,7 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 4
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -269,7 +269,7 @@ static void* handle_event(void* e) {
 			coroutine_start(c, handle_process_event);
 			resume(c, e);
 			/* If it no longer exists, free it's coroutine */
-			if (process->status != PROCESS_ALIVE) {
+			if (process->status == PROCESS_ZOMBIE) {
 				coroutine_free(process->coroutine);
 			}
 		} else {
@@ -294,7 +294,7 @@ static void* handle_process_event(void* event_ptr) {
 		handle_syscall(process);
 	}
 
-	if (process->dying == true) {
+	if (process->status == PROCESS_TO_DIE) {
 		process_kill(process, 0);
 	}
 	// handle the cases when process dies
@@ -513,6 +513,7 @@ static void* sos_main(void* na) {
 	trace(5);
 #endif
 	trace(5);
+	process_init();
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
 	trace(5);
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");

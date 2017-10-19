@@ -7,7 +7,7 @@
 #include <sys/kassert.h>
 #include <utils/list.h>
 
-#define verbose 8
+#define verbose 0
 
 /* passed to the list library in foreach() */
 static int resume_coro(void *coro, void *var);

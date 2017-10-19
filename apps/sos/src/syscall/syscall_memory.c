@@ -5,7 +5,7 @@
 #include <syscall/syscall_memory.h>
 #include <utils/page.h>
 #include <vm.h>
-#define verbose 0
+#define verbose 2
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -55,7 +55,8 @@ uint32_t syscall_mmap(struct process* process, uint32_t size,
 	region_node* mapped_region =
 		create_mmap(process->vspace.regions, size, permissions);
 	if (!mapped_region) {
-		return -1;
+		dprintf(1, "Failed to find space to mmap or something\n");
+		return 0;
 	}
 	trace(5);
 	if (permissions & PAGE_PINNED) {
@@ -65,8 +66,9 @@ uint32_t syscall_mmap(struct process* process, uint32_t size,
 			struct page_table_entry* pte =
 				sos_map_page(process->vspace.pagetable, vaddr, permissions, 0);
 			if (pte == NULL) {
+				dprintf(1, "Pte was null\n");
 				region_remove(process->vspace.regions, process, vaddr);
-				return -1;
+				return 0;
 			}
 		}
 	}

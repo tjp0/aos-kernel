@@ -24,7 +24,7 @@
 #define FRAME_RESERVED 90000
 
 struct frame* frame_table = NULL;
-
+struct lock* frame_table_lock;
 uint32_t frame_count = 0;
 
 uint32_t frame_cache_tail = 0;
@@ -70,7 +70,7 @@ void* frame_to_vaddr(struct frame* frame_cell) {
 	return paddr_to_vaddr(frame_to_paddr(frame_cell));
 }
 
-struct frame* frame_physical_alloc(void) {
+static struct frame* frame_physical_alloc(void) {
 	trace(5);
 	if (ft_numframes - frame_count < FRAME_RESERVED) {
 		return NULL;
@@ -120,7 +120,7 @@ struct frame* frame_physical_alloc(void) {
 	return newframe;
 }
 
-int frame_physical_free(struct frame* frame) {
+static int frame_physical_free(struct frame* frame) {
 	kassert(frame != NULL);
 	kassert(frame->cap != 0);
 	kassert(frame->debug_check = DEBUG_VAL);
@@ -154,6 +154,7 @@ static void cache_frames() {
 }
 
 struct frame* frame_alloc(void) {
+	lock(frame_table_lock);
 	if (frame_cache_tail == 0) {
 		trace(5);
 		cache_frames();
@@ -170,6 +171,7 @@ struct frame* frame_alloc(void) {
 	trace(5);
 	if (new_frame == NULL) {
 		dprintf(0, "Unable to allocate frame\n");
+		unlock(frame_table_lock);
 		return NULL;
 	}
 	trace(5);
@@ -179,11 +181,12 @@ struct frame* frame_alloc(void) {
 			frame_to_vaddr(new_frame), frame_cache_tail);
 	trace(5);
 	memset(frame_to_vaddr(new_frame), 0, PAGE_SIZE_4K);
-
+	unlock(frame_table_lock);
 	return new_frame;
 }
 
 void frame_free(struct frame* frame) {
+	lock(frame_table_lock);
 	kassert(frame != NULL);
 	trace(5);
 	dprintf(4, "Freeing frame: %08x\n", frame_to_vaddr(frame));
@@ -195,11 +198,15 @@ void frame_free(struct frame* frame) {
 		trace(5);
 		frame_physical_free(frame);
 	}
+	unlock(frame_table_lock);
 	trace(5);
 }
 void ft_initialize(void) {
 	trace(5);
 	seL4_Word offset = 0;
+	frame_table_lock = lock_create("Frame Table Lock");
+	conditional_panic(frame_table_lock == NULL,
+					  "Unable to create frame table lock");
 
 	while (offset < ft_size) {
 		trace(5);
