@@ -4,7 +4,7 @@
 #include <sos.h>
 #include <sos_coroutine.h>
 #include <vm.h>
-#define verbose 8
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/kassert.h>
 

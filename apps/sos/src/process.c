@@ -3,6 +3,7 @@
 #include <cpio/cpio.h>
 #include <devices/devices.h>
 #include <elf/elf.h>
+#include <garbage.h>
 #include <libcoro.h>
 #include <mapping.h>
 #include <process.h>
@@ -193,9 +194,13 @@ struct process* process_create(char* app_name) {
 		sos_map_page(process->vspace.pagetable, ipc_region->vaddr,
 					 PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED, 0);
 
-	if (create_heap(process->vspace.regions) < 0) {
+	region_node* heap_region = create_heap(process->vspace.regions);
+	if (heap_region == NULL) {
 		goto err13;
 	}
+	process->vspace.regions->heap = heap_region;
+	process->vspace.sbrk = heap_region->vaddr;
+
 	if (ipc_pte == NULL) {
 		trace(5);
 		goto err13;
@@ -354,13 +359,13 @@ void process_kill(struct process* process, uint32_t status) {
 	process->vspace.pagetable = NULL;
 	process->croot = 0;
 	process->vspace.regions = NULL;
-	/* If we're someone else, we can easily cleanup the coro
-	 * otherwise leave it to the main event loop to perform the cleanup */
-	if (process->coroutine != current_coro()) {
-		trace(1);
-		coroutine_free(process->coroutine);
-	}
+
+	/* The garbage collector will clean up this coro */
+	kassert(process->coroutine != NULL);
+	add_garbage_coroutine(process->coroutine);
+	process->coroutine = NULL;
 	trace(1);
+
 	// Signal that *this* process has ended
 	signal(process->event_exited, (void*)process->pid);
 	trace(1);
@@ -375,6 +380,7 @@ void process_kill(struct process* process, uint32_t status) {
 void process_zombie_reap(struct process* process) {
 	kassert(process != NULL);
 	kassert(process->status == PROCESS_ZOMBIE);
+	kassert(process->coroutine == NULL);
 	semaphore_destroy(process->event_finished_syscall);
 	semaphore_destroy(process->event_exited);
 	process_table[process->pid] = NULL;

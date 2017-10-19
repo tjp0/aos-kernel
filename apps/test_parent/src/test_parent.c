@@ -13,7 +13,7 @@
 /* Your OS header file */
 #include <sos.h>
 
-#define NUM_CHILDREN 16
+#define NUM_CHILDREN 3
 
 int main(int argc, char const *argv[]) {
 	printf("Starting up parent process");
@@ -22,17 +22,27 @@ int main(int argc, char const *argv[]) {
 
 	for (int i = 0; i < NUM_CHILDREN; i++) {
 		pids[i] = sos_process_create("test_child");
-		printf("Created child %u\n", pids[i]);
+		if (pids[i] > 0) {
+			printf("Created child %u\n", pids[i]);
+		} else {
+			printf("Failed to create child\n");
+		}
 	}
 
 	for (int i = 0; i < NUM_CHILDREN; i++) {
-		sos_process_wait(pids[i]);
-		printf("Child %d finished\n", pids[i]);
+		if (pids[i] > 0) {
+			sos_process_wait(pids[i]);
+			printf("Child %d finished\n", pids[i]);
+		}
 	}
 
 	for (int i = 0; i < NUM_CHILDREN; i++) {
 		pids[i] = sos_process_create("test_child_inf");
-		printf("Created child %d\n", pids[i]);
+		if (pids[i] >= 0) {
+			printf("Created child %d\n", pids[i]);
+		} else {
+			printf("Failed to create child\n");
+		}
 	}
 	printf("Onto phase 2!\n");
 
@@ -50,7 +60,7 @@ int main(int argc, char const *argv[]) {
 	printf("Okay! Now time for the mass murder!\n");
 
 	for (int i = 0; i < NUM_CHILDREN; i++) {
-		sos_process_delete(pids[i]);
+		if (pids[i] > 0) sos_process_delete(pids[i]);
 	}
 	printf("All done. ps should be clear\n");
 	return 0;

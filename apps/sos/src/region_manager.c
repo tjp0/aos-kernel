@@ -289,9 +289,10 @@ void regions_print(region_list* regions) {
 int region_remove(region_list* regions, struct process* process,
 				  vaddr_t vaddr) {
 	region_node* node = findspot(regions->start, vaddr);
-	if (!node) {
+	if (node == NULL) {
 		return VM_FAIL;
 	}
+	kassert(node->vaddr != 0);
 	dprintf(3, "Removing region: 0x%08x, %s\n", node->vaddr, node->name);
 	for (vaddr_t vaddr = node->vaddr; node->vaddr + vaddr < node->size;
 		 vaddr += PAGE_SIZE_4K) {

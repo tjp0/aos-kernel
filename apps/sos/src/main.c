@@ -22,11 +22,11 @@
 #include <serial/serial.h>
 
 #include <clock/clock.h>
+#include <garbage.h>
 #include <vm.h>
 #include "elf.h"
-#include "network.h"
-
 #include "mapping.h"
+#include "network.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
 
@@ -49,7 +49,7 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 0
+#define verbose 4
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -188,14 +188,16 @@ void handle_syscall(struct process* process) {
 				   __func__, syscall_number);
 			/* we don't want to reply to an unknown syscall, so short circuit
 			 * here */
-			cspace_free_slot(cur_cspace, reply_cap);
+			cspace_delete_cap(cur_cspace, reply_cap);
 			return;
 		}
 	}
 	/* Process is dead, and there's nothing to return to
 	 * so just free the reply cap */
 	if (process->status != PROCESS_ALIVE) {
+		trace(0);
 		cspace_free_slot(cur_cspace, reply_cap);
+		trace(0);
 		return;
 	}
 
@@ -239,6 +241,9 @@ static void* event_loop(void* void_ep) {
 	}
 	return NULL;
 }
+/* Dispatches an event (IPC) onto the appropriate handler
+ * switching over to a process's own coroutine if required
+ * performing operations on it's behalf */
 static void* handle_event(void* e) {
 	struct event* event = (struct event*)e;
 	seL4_Word badge = event->badge;
@@ -261,17 +266,23 @@ static void* handle_event(void* e) {
 	} else {
 		struct process* process = get_process(badge);
 		if (process) {
+			if (process->status != PROCESS_ALIVE) {
+				return 0;
+			}
+
 			/* If this was a syscall by a process, run it in that
 			 * process's coroutine */
 			coro c = process->coroutine;
 			kassert(process->coroutine);
+			if (!coro_idle(c)) {
+				printf("<%s:%u>'s coro isn't idle during a syscall!\n",
+					   process->name, process->pid);
+				resume(c, NULL);
+				panic("FAIL");
+			}
 			kassert(coro_idle(c));
 			coroutine_start(c, handle_process_event);
 			resume(c, e);
-			/* If it no longer exists, free it's coroutine */
-			if (process->status == PROCESS_ZOMBIE) {
-				coroutine_free(process->coroutine);
-			}
 		} else {
 			printf("Rootserver got an unknown message\n");
 		}
@@ -293,17 +304,15 @@ static void* handle_process_event(void* event_ptr) {
 		/* System call */
 		handle_syscall(process);
 	}
-
+	/* The process has indicated it wants to die */
 	if (process->status == PROCESS_TO_DIE) {
 		process_kill(process, 0);
+		kassert(process->status == PROCESS_ZOMBIE);
 	}
-	// handle the cases when process dies
-	// e.g you call the exit syscall and the
-	// process pointer is no longer valid
-	process = get_process(badge);
-	if (process) {
-		signal(process->event_finished_syscall, NULL);
-	}
+	/* At the end of a call, we must be either dead or alive, not inbetween */
+	kassert(process->status == PROCESS_ZOMBIE ||
+			process->status == PROCESS_ALIVE);
+	signal(process->event_finished_syscall, NULL);
 	return NULL;
 }
 
@@ -502,6 +511,7 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	conditional_panic(err, "Failed to allocate c-slot for IPC endpoint");
 }
 static void* sos_main(void* na) {
+	init_garbage();
 	/* Initialise the network hardware */
 	network_init(badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_NETWORK));
 	trace(5);
@@ -531,5 +541,7 @@ static void* sos_main(void* na) {
 	/* Start the user application */
 	start_first_process("First Process", sos_syscall_cap);
 
+	/* Now that initialization is done; go into a garbage collection loop */
+	garbage_loop();
 	return NULL;
 }

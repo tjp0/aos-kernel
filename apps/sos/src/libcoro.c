@@ -19,14 +19,8 @@
 /* Ideally each coroutine struct should be located
  * in it's own mapped area for debugging in the event
  * of an overflow */
-struct coroutine {
-	jmp_buf context;
-	struct coroutine* next;
-	void* stack_head;
-	struct process* process;
-	bool idle;
-	uint32_t debug;
-} first = {.process = &sos_process, .idle = false, .debug = DEBUG_VAL};
+struct coroutine first = {
+	.process = &sos_process, .idle = false, .debug = DEBUG_VAL};
 
 struct coroutine* current = &first;
 

@@ -7,8 +7,8 @@
 #include <vm.h>
 #define verbose 2
 #include <sys/debug.h>
+#include <sys/kassert.h>
 #include <sys/panic.h>
-
 uint32_t syscall_sbrk(struct process* process, uint32_t size) {
 	dprintf(3, "process addr in sbrk: %08x\n", (unsigned int)process);
 	assert(process != NULL);
@@ -17,15 +17,6 @@ uint32_t syscall_sbrk(struct process* process, uint32_t size) {
 	region_node* heap = process->vspace.regions->heap;
 	dprintf(3, "regions: %p\n", process->vspace.regions);
 	dprintf(3, "heap: %p\n", heap);
-	if (heap == NULL) {
-		heap = create_heap(process->vspace.regions);
-		if (heap == NULL) {
-			dprintf(2, "sbrk fail1\n");
-			return 0;
-		}
-		trace(3);
-		process->vspace.sbrk = process->vspace.regions->heap->vaddr;
-	}
 	trace(3);
 	vaddr_t old_sbrk = process->vspace.sbrk;
 	vaddr_t new_sbrk = old_sbrk + size;
@@ -77,5 +68,7 @@ uint32_t syscall_mmap(struct process* process, uint32_t size,
 	return mapped_region->vaddr;
 }
 uint32_t syscall_munmap(struct process* process, vaddr_t vaddr) {
+	kassert(vaddr != 0);
+	dprintf(0, "Unmapping region at %08x\n", vaddr);
 	return region_remove(process->vspace.regions, process, vaddr);
 }

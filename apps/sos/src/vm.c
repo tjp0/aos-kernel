@@ -10,7 +10,7 @@
 #include <utils/page.h>
 #include <vm.h>
 
-#define verbose 0
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/kassert.h>
 #include <sys/panic.h>
@@ -494,9 +494,12 @@ char* fault_getprintable(uint32_t reg) {
 }
 
 void print_fault(struct fault f) {
-	printf("vm fault at 0x%08x, pc = 0x%08x, status=0x%x, %s %s\n", f.vaddr,
-		   f.pc, f.status, f.ifault ? "Instruction" : "Data",
-		   fault_getprintable(f.status));
+	dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, status=0x%x, %s %s\n", f.vaddr,
+			f.pc, f.status, f.ifault ? "Instruction" : "Data",
+			fault_getprintable(f.status));
+	if (verbose > 0) {
+		regions_print(current_process()->vspace.regions);
+	}
 }
 
 void sos_handle_vmfault(struct process* process) {
@@ -520,7 +523,9 @@ void sos_handle_vmfault(struct process* process) {
 			if (err != VM_OKAY) {
 				dprintf(0, "Out of memory\n");
 				process_signal_kill(process);
-				cspace_delete_cap(cur_cspace, reply_cap);
+				trace(0);
+				cspace_free_slot(cur_cspace, reply_cap);
+				trace(0);
 				return;
 			}
 		} else if (vm_pageismarked(pte)) {
@@ -533,7 +538,7 @@ void sos_handle_vmfault(struct process* process) {
 			dprintf(0, "Invalid memory permissions for process\n");
 			dprint_fault(0, fault);
 			process_signal_kill(process);
-			cspace_delete_cap(cur_cspace, reply_cap);
+			cspace_free_slot(cur_cspace, reply_cap);
 			return;
 		}
 		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
@@ -551,8 +556,11 @@ void sos_handle_vmfault(struct process* process) {
 			trace(5);
 			dprintf(0, "Invalid memory access for process\n");
 			dprint_fault(0, fault);
+			trace(0);
 			process_signal_kill(process);
-			cspace_delete_cap(cur_cspace, reply_cap);
+			trace(0);
+			cspace_free_slot(cur_cspace, reply_cap);
+			trace(0);
 			return;
 		}
 		seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
@@ -563,7 +571,7 @@ void sos_handle_vmfault(struct process* process) {
 		regions_print(process->vspace.regions);
 		printf("Unable to handle process fault\n");
 		process_signal_kill(process);
-		cspace_delete_cap(cur_cspace, reply_cap);
+		cspace_free_slot(cur_cspace, reply_cap);
 		return;
 	}
 
@@ -618,6 +626,9 @@ int vm_init(void) {
 }
 
 int vm_swappage(void) {
+#ifdef CONFIG_SOS_DEBUG_NOSWAP
+	return VM_FAIL;
+#endif
 	bool owned = lock_owned(paging_lock);
 	if (!owned) LOCK(paging_lock);
 	trace(4);

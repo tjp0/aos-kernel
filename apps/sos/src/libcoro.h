@@ -3,11 +3,20 @@
  */
 
 #pragma once
+#include <setjmp.h>
 #include <stdbool.h>
 #include <stdint.h>
 struct process;
-typedef struct coroutine *coro;
+struct coroutine {
+	jmp_buf context;
+	struct coroutine *next;
+	void *stack_head;
+	struct process *process;
+	bool idle;
+	uint32_t debug;
+};
 
+typedef struct coroutine *coro;
 /* Creates a new coroutine that can be passed
  * to coroutine_start */
 coro coroutine_create(struct process *process);

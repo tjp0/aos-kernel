@@ -105,6 +105,30 @@ int list_foreach(list_t *l, int (*action)(void *)) {
 	}
 	return 0;
 }
+int list_foreach_del(list_t *l, int (*action)(void *)) {
+	assert(l != NULL);
+	node_t *prev = NULL;
+	node_t *n = l->head;
+	while (n) {
+		int res = action(n->data);
+		if (res != 0) {
+			if (prev) {
+				prev->next = n->next;
+			} else {
+				l->head = n->next;
+				prev = NULL;
+			}
+			free(n);
+			n = prev;
+		}
+		if (!n) {
+			return 0;
+		}
+		n = n->next;
+		prev = n;
+	}
+	return 0;
+}
 int list_foreach_var(list_t *l, int (*action)(void *, void *), void *var) {
 	assert(l != NULL);
 	for (node_t *n = l->head; n != NULL; n = n->next) {
