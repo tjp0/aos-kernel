@@ -45,7 +45,7 @@ struct process {
 
 extern struct process* process_table[MAX_PROCESSES];
 
-struct process* get_process(int32_t pid);
+struct process* get_process(uint32_t pid);
 struct process* process_create(char* app_name);
 void process_kill(struct process* process, uint32_t status);
 void process_signal_kill(struct process* process);
