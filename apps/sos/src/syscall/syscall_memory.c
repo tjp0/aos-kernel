@@ -21,8 +21,7 @@ uint32_t syscall_sbrk(struct process* process, uint32_t size) {
 	trace(3);
 	vaddr_t old_sbrk = process->vspace.sbrk;
 	vaddr_t new_sbrk = old_sbrk + size;
-	bool overflow = __builtin_add_overflow(old_sbrk, size, &new_sbrk);
-	if (overflow) {
+	if (new_sbrk < old_sbrk) {
 		dprintf(1, "** overflow\n");
 		return 0;
 	}
