@@ -74,7 +74,7 @@ config SOS_DEBUG_NETWORK_PORT
 	depends on SOS_DEBUG_NETWORK
 	default 6000
 
-config SOS_DEBUG_TESTS
+config SOS_DEBUG_FRAME_LIMIT
+	int "Maximum number of frames (Debugging)"
 	depends on APP_SOS
-	bool "SOS Tests"
-	default n
+	default 0
