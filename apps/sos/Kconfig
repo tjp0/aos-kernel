@@ -80,6 +80,11 @@ config SOS_DEBUG_NOSWAP
 	default n
 
 config SOS_DEBUG_FRAME_LIMIT
-	int "Maximum number of frames (Debugging)"
+	int "Maximum number of frames (Frametable Debugging)"
+	depends on APP_SOS
+	default 0
+
+config SOS_DEBUG_UT_LIMIT
+	int "Maximum amount of memory that the UT allocator will present (bytes)"
 	depends on APP_SOS
 	default 0
