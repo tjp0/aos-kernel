@@ -23,6 +23,8 @@ static charBuffer* serial_buffer_ptr = &serial_buffer;
 static coro listening_thread = NULL;
 
 static int reader = 0;
+/* Write the received character into a ringbuffer; alert listening
+ * coroutine if it is waiting for input */
 static void serial_handler(struct serial* serial, char c) {
 	trace(4);
 	if (isBufferFull(serial_buffer_ptr)) {
@@ -78,11 +80,6 @@ static int serial_read(struct fd* fd, struct vspace* vspace, vaddr_t procbuf,
 			trace(4);
 			break;
 		}
-		/*if(written % 10 == 0) {
-			dprintf(2, "Serial read %u\n", written);
-		}*/
-
-		// dprintf(2, "%c", c);
 
 		if (index == SERIAL_BUFFER_SIZE) {
 			trace(4);
@@ -142,7 +139,7 @@ static int serial_close(struct fd* fd) {
 int serial_open(struct fd* fd, int flags) {
 	(void)flags;
 
-    /* check if console is already opened as O_RDONLY || O_RDWR */
+	/* check if console is already opened as O_RDONLY || O_RDWR */
 	if (reader == 1 && (flags == O_RDONLY || flags == O_RDWR)) {
 		return -1;
 	}

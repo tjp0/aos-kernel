@@ -1,5 +1,6 @@
 /*
- * libcoro - Modelled off picoro for a near drop-in replacement for SOS.
+ * libcoro - Modified version of picoro for a near drop-in replacement for SOS.
+ * Uses some code/API from picoro
  */
 
 #pragma once

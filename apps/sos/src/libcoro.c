@@ -1,3 +1,11 @@
+/* Heavily based off picoro; uses some code from picoro */
+
+/* Picoro's license:
+ * picoro - minimal coroutines for C.
+ * Written by Tony Finch <dot@dotat.at>
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
 #include "libcoro.h"
 #include <process.h>
 #include <setjmp.h>
@@ -40,7 +48,10 @@ struct coroutine* current_coro(void) {
 	return current;
 }
 
-int resumable(struct coroutine* coro) { kassert(coro->debug == DEBUG_VAL);return (coro && coro->next == NULL); }
+int resumable(struct coroutine* coro) {
+	kassert(coro->debug == DEBUG_VAL);
+	return (coro && coro->next == NULL);
+}
 /* Used for argument passing between routines */
 static void* volatile pass_arg;
 
@@ -130,7 +141,10 @@ struct coroutine* coroutine_create(struct process* process) {
 			process->name, process->pid);
 	return ret_co;
 }
-bool coro_idle(struct coroutine* coro) { kassert(coro->debug == DEBUG_VAL);return coro->idle; }
+bool coro_idle(struct coroutine* coro) {
+	kassert(coro->debug == DEBUG_VAL);
+	return coro->idle;
+}
 struct process* current_process(void) {
 	return current->process;
 }

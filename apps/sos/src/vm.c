@@ -32,7 +32,7 @@ static inline uint32_t vaddr_to_ptsoffset(vaddr_t address) {
 static inline uint32_t vaddr_to_pteoffset(vaddr_t address) {
 	return ((address >> 12) & 0x000000FF);
 }
-
+/* Add a PTE to the clock replacement algorithm linked list */
 static void clock_add(struct page_table_entry* pte) {
 	kassert(pte != NULL);
 	if (!(pte->flags & PAGE_PINNED)) {
@@ -49,6 +49,7 @@ static void clock_add(struct page_table_entry* pte) {
 	}
 }
 
+/* Remove a PTE from the clock replacement algorithm linked list */
 static void clock_remove(struct page_table_entry* pte) {
 	kassert(pte != NULL);
 	if (pte->next == NULL) {
