@@ -1,5 +1,6 @@
 #pragma once
 #include <libcoro.h>
+#include <process.h>
 #include <stdio.h>
 #include <sys/panic.h>
 #undef kassert
@@ -8,8 +9,9 @@
 #else
 static inline void __kassert_fail(const char* expr, const char* file, int line,
 								  const char* func) {
-	fprintf(stderr, "%u Assertion failed: (%s: %s: %d):%s\n",
-			current_coro_num(), file, func, line, expr);
+	fprintf(stderr, "<%s:%u> Assertion failed: (%s: %s: %d):%s\n",
+			current_process()->name, current_process()->pid, file, func, line,
+			expr);
 	fflush(NULL);
 	sel4_abort();
 }

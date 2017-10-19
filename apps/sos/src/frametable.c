@@ -1,8 +1,10 @@
 #include <autoconf.h>
+#include <autoconf.h>
 #include <cspace/cspace.h>
 #include <frametable.h>
 #include <mapping.h>
 #include <sel4/sel4.h>
+#include <sos_coroutine.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/kassert.h>
@@ -14,13 +16,15 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
+#define DEBUG_VAL 0x38019
+
 #define FRAME_CACHE_SIZE 30
 #define FRAME_CACHE_HIGH_WATER 20
 
 #define FRAME_RESERVED 90000
 
 struct frame* frame_table = NULL;
-
+struct lock* frame_table_lock;
 uint32_t frame_count = 0;
 
 uint32_t frame_cache_tail = 0;
@@ -66,9 +70,13 @@ void* frame_to_vaddr(struct frame* frame_cell) {
 	return paddr_to_vaddr(frame_to_paddr(frame_cell));
 }
 
-struct frame* frame_physical_alloc(void) {
+static struct frame* frame_physical_alloc(void) {
 	trace(5);
 	if (ft_numframes - frame_count < FRAME_RESERVED) {
+		return NULL;
+	}
+	if (frame_count > CONFIG_SOS_DEBUG_FRAME_LIMIT &&
+		CONFIG_SOS_DEBUG_FRAME_LIMIT > 0) {
 		return NULL;
 	}
 
@@ -90,14 +98,21 @@ struct frame* frame_physical_alloc(void) {
 
 	conditional_panic(err, "Failed to retype UT memory into frame ?");
 	trace(5);
+	dprintf(4, "Mapping frame into mapping area: %08x\n",
+			paddr_to_vaddr(new_frame_addr));
+
 	struct page_table_entry* pte = sos_map_page(
 		sos_process.vspace.pagetable, (vaddr_t)paddr_to_vaddr(new_frame_addr),
-		PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED, new_frame_cap);
+		PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED | PAGE_SPECIAL,
+		new_frame_cap);
 	if (pte == NULL) {
 		panic("Failed to map frame into SOS");
 	}
+	pte_untrack(pte);
 	trace(5);
 	struct frame* newframe = vaddr_to_frame(paddr_to_vaddr(new_frame_addr));
+	kassert(newframe->debug_check != DEBUG_VAL);
+	newframe->debug_check = DEBUG_VAL;
 	trace(5);
 	newframe->cap = new_frame_cap;
 	trace(5);
@@ -105,8 +120,12 @@ struct frame* frame_physical_alloc(void) {
 	return newframe;
 }
 
-int frame_physical_free(struct frame* frame) {
+static int frame_physical_free(struct frame* frame) {
+	kassert(frame != NULL);
 	kassert(frame->cap != 0);
+	kassert(frame->debug_check = DEBUG_VAL);
+	frame->debug_check = 0;
+	dprintf(4, "Physical Freeing frame: %08x\n", frame_to_vaddr(frame));
 	cspace_delete_cap(cur_cspace, frame->cap);
 	ut_free(frame_to_paddr(frame), seL4_PageBits);
 
@@ -135,6 +154,7 @@ static void cache_frames() {
 }
 
 struct frame* frame_alloc(void) {
+	lock(frame_table_lock);
 	if (frame_cache_tail == 0) {
 		trace(5);
 		cache_frames();
@@ -151,21 +171,25 @@ struct frame* frame_alloc(void) {
 	trace(5);
 	if (new_frame == NULL) {
 		dprintf(0, "Unable to allocate frame\n");
+		unlock(frame_table_lock);
 		return NULL;
 	}
 	trace(5);
 	kassert(new_frame->cap != 0);
 
-	dprintf(3, "Allocated frame %p, frame cache is now %u\n", new_frame,
-			frame_cache_tail);
+	dprintf(3, "Allocated frame 0x%08x, frame cache is now %u\n",
+			frame_to_vaddr(new_frame), frame_cache_tail);
 	trace(5);
 	memset(frame_to_vaddr(new_frame), 0, PAGE_SIZE_4K);
-
+	unlock(frame_table_lock);
 	return new_frame;
 }
 
 void frame_free(struct frame* frame) {
+	lock(frame_table_lock);
+	kassert(frame != NULL);
 	trace(5);
+	dprintf(4, "Freeing frame: %08x\n", frame_to_vaddr(frame));
 	if (frame_cache_tail < FRAME_CACHE_SIZE - 1) {
 		trace(5);
 		frame_cache_tail++;
@@ -174,11 +198,15 @@ void frame_free(struct frame* frame) {
 		trace(5);
 		frame_physical_free(frame);
 	}
+	unlock(frame_table_lock);
 	trace(5);
 }
 void ft_initialize(void) {
 	trace(5);
 	seL4_Word offset = 0;
+	frame_table_lock = lock_create("Frame Table Lock");
+	conditional_panic(frame_table_lock == NULL,
+					  "Unable to create frame table lock");
 
 	while (offset < ft_size) {
 		trace(5);
@@ -199,12 +227,13 @@ void ft_initialize(void) {
 										seL4_PageBits, cur_cspace, &new_frame);
 		conditional_panic(err, "Frametable failed to retype memory at init");
 		trace(5);
+
+		dprintf(4, "Mapping frametable frame into: %08x\n", vaddr);
 		struct page_table_entry* pte = sos_map_page(
 			sos_process.vspace.pagetable, (vaddr_t)vaddr,
 			PAGE_READABLE | PAGE_WRITABLE | PAGE_PINNED, new_frame);
 		conditional_panic(pte == NULL,
 						  "Frametable failed to map memory at init");
-
 		offset += (1 << seL4_PageBits);
 		trace(5);
 	}

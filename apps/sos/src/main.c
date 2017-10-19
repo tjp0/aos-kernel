@@ -22,11 +22,11 @@
 #include <serial/serial.h>
 
 #include <clock/clock.h>
+#include <garbage.h>
 #include <vm.h>
 #include "elf.h"
-#include "network.h"
-
 #include "mapping.h"
+#include "network.h"
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
 
@@ -49,7 +49,7 @@
 #include <utils/stack.h>
 #include "sos_coroutine.h"
 #include "test_timer.h"
-#define verbose 2
+#define verbose 4
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -95,14 +95,10 @@ static void* _sos_late_init(void* unusedarg);
  */
 extern fhandle_t mnt_point;
 
-void handle_syscall(seL4_Word badge, int num_args) {
+void handle_syscall(struct process* process) {
 	seL4_Word syscall_number;
 	seL4_CPtr reply_cap;
-	struct process* process = get_process(badge);
-	if (process == NULL) {
-		dprintf(0, "SYSCALL from unknown process with PID %u\n", badge);
-		panic("Unknown process made a syscall");
-	}
+
 	struct ipc_command ipc = ipc_create();
 	ipc_unpacki(&ipc, &syscall_number);
 
@@ -192,14 +188,16 @@ void handle_syscall(seL4_Word badge, int num_args) {
 				   __func__, syscall_number);
 			/* we don't want to reply to an unknown syscall, so short circuit
 			 * here */
-			cspace_free_slot(cur_cspace, reply_cap);
+			cspace_delete_cap(cur_cspace, reply_cap);
 			return;
 		}
 	}
 	/* Process is dead, and there's nothing to return to
 	 * so just free the reply cap */
 	if (process->status != PROCESS_ALIVE) {
+		trace(0);
 		cspace_free_slot(cur_cspace, reply_cap);
+		trace(0);
 		return;
 	}
 
@@ -227,64 +225,9 @@ struct event {
 	seL4_Word label;
 	seL4_MessageInfo_t message;
 };
-
-void* handle_event(void* e) {
-	struct event* event = (struct event*)e;
-	seL4_Word badge = event->badge;
-	seL4_Word label = event->label;
-	seL4_MessageInfo_t message = event->message;
-
-	dprintf(3, "SOS activated\n");
-	if (badge & IRQ_EP_BADGE) {
-		/* Interrupt */
-		if (badge & IRQ_BADGE_NETWORK) {
-			dprintf(3, "Network IRQ\n");
-			network_irq();
-		}
-		if (badge & IRQ_BADGE_EPIT1) {
-			dprintf(3, "Timer IRQ\n");
-			timer_interrupt_epit1();
-		}
-		if (badge & IRQ_BADGE_EPIT2) {
-			dprintf(3, "Timer IRQ\n");
-			timer_interrupt_epit2();
-		}
-
-	} else {
-		struct process* process = get_process(badge);
-		if (process) {
-			kassert(process->current_coroutine == NULL);
-			// mark the current coroutine so we know not to kill it
-			process->current_coroutine = current_coro();
-
-			if (label == seL4_VMFault) {
-				dprintf(3, "VMFAULT\n");
-				sos_handle_vmfault(process);
-
-			} else if (label == seL4_NoFault) {
-				/* System call */
-				handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-			}
-
-			// handle the cases when process dies
-			// e.g you call the exit syscall and the
-			// process pointer is no longer valid
-			process = get_process(badge);
-			if (process) {
-				// it's now ok to kill it
-				process->current_coroutine = NULL;
-				signal(process->event_finished_syscall, NULL);
-			}
-
-		} else {
-			printf("Rootserver got an unknown message\n");
-		}
-	}
-	dprintf(3, "Coro complete\n");
-	return 0;
-}
-
-void* event_loop(void* void_ep) {
+static void* handle_event(void* e);
+static void* handle_process_event(void* e);
+static void* event_loop(void* void_ep) {
 	seL4_CPtr ep = (seL4_CPtr)void_ep;
 	while (1) {
 		seL4_Word badge;
@@ -293,11 +236,83 @@ void* event_loop(void* void_ep) {
 		message = seL4_Wait(ep, &badge);
 		label = seL4_MessageInfo_get_label(message);
 		struct event e = {badge, label, message};
-		coro event_handler = coroutine(&handle_event);
-
+		handle_event(&e);
 		trace(5);
-		resume(event_handler, &e);
 	}
+	return NULL;
+}
+/* Dispatches an event (IPC) onto the appropriate handler
+ * switching over to a process's own coroutine if required
+ * performing operations on it's behalf */
+static void* handle_event(void* e) {
+	struct event* event = (struct event*)e;
+	seL4_Word badge = event->badge;
+
+	if (badge & IRQ_EP_BADGE) {
+		/* Interrupt */
+		if (badge & IRQ_BADGE_NETWORK) {
+			dprintf(4, "Network IRQ\n");
+			network_irq();
+		}
+		if (badge & IRQ_BADGE_EPIT1) {
+			dprintf(4, "Timer IRQ\n");
+			timer_interrupt_epit1();
+		}
+		if (badge & IRQ_BADGE_EPIT2) {
+			dprintf(4, "Timer IRQ\n");
+			timer_interrupt_epit2();
+		}
+
+	} else {
+		struct process* process = get_process(badge);
+		if (process) {
+			if (process->status != PROCESS_ALIVE) {
+				return 0;
+			}
+
+			/* If this was a syscall by a process, run it in that
+			 * process's coroutine */
+			coro c = process->coroutine;
+			kassert(process->coroutine);
+			if (!coro_idle(c)) {
+				printf("<%s:%u>'s coro isn't idle during a syscall!\n",
+					   process->name, process->pid);
+				resume(c, NULL);
+				panic("FAIL");
+			}
+			kassert(coro_idle(c));
+			coroutine_start(c, handle_process_event);
+			resume(c, e);
+		} else {
+			printf("Rootserver got an unknown message\n");
+		}
+	}
+	return 0;
+}
+static void* handle_process_event(void* event_ptr) {
+	struct event event = *((struct event*)event_ptr);
+	seL4_Word badge = event.badge;
+	seL4_Word label = event.label;
+
+	/* This is called by process_event, so process is valid */
+	struct process* process = get_process(badge);
+	if (label == seL4_VMFault) {
+		dprintf(3, "VMFAULT\n");
+		sos_handle_vmfault(process);
+
+	} else if (label == seL4_NoFault) {
+		/* System call */
+		handle_syscall(process);
+	}
+	/* The process has indicated it wants to die */
+	if (process->status == PROCESS_TO_DIE) {
+		process_kill(process, 0);
+		kassert(process->status == PROCESS_ZOMBIE);
+	}
+	/* At the end of a call, we must be either dead or alive, not inbetween */
+	kassert(process->status == PROCESS_ZOMBIE ||
+			process->status == PROCESS_ALIVE);
+	signal(process->event_finished_syscall, NULL);
 	return NULL;
 }
 
@@ -460,13 +475,16 @@ static void* _sos_late_init(void* unusedarg) {
 	/* Main will yield at some point, at which point we'll start the main event
 	 * loop *
 	 * which will handle interrupts as SOS initializes */
-	coro main_func = coroutine(sos_main);
+	coro coro_main_func = coroutine_create(&sos_process);
+	coro coro_event_loop = coroutine_create(&sos_process);
+	coroutine_start(coro_main_func, sos_main);
 	trace(5);
-	resume(main_func, NULL);
-	coro coro_event_loop = coroutine(event_loop);
+	resume(coro_main_func, NULL);
+
+	coroutine_start(coro_event_loop, event_loop);
 	trace(5);
 	resume(coro_event_loop, (void*)sos_syscall_cap);
-	panic("We should not be here");
+	panic("The main event loop yielded. This should never happen");
 	__builtin_unreachable();
 }
 
@@ -493,6 +511,7 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep) {
 	conditional_panic(err, "Failed to allocate c-slot for IPC endpoint");
 }
 static void* sos_main(void* na) {
+	init_garbage();
 	/* Initialise the network hardware */
 	network_init(badge_irq_ep(sos_interrupt_cap, IRQ_BADGE_NETWORK));
 	trace(5);
@@ -504,6 +523,7 @@ static void* sos_main(void* na) {
 	trace(5);
 #endif
 	trace(5);
+	process_init();
 	conditional_panic(serial_dev_init() < 0, "Serial init failed");
 	trace(5);
 	conditional_panic(nfs_dev_init() < 0, "NFS init failed");
@@ -521,5 +541,7 @@ static void* sos_main(void* na) {
 	/* Start the user application */
 	start_first_process("First Process", sos_syscall_cap);
 
+	/* Now that initialization is done; go into a garbage collection loop */
+	garbage_loop();
 	return NULL;
 }

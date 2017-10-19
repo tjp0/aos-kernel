@@ -8,15 +8,17 @@
  * @TAG(NICTA_BSD)
  */
 
-#include "ut.h"
+#define verbose 0
+#include <sys/debug.h>
+
+/* Needed because there's multiple align macros */
+#undef ALIGN
 #include <assert.h>
 #include <cspace/cspace.h>
 #include <stdlib.h>
+#include "ut.h"
 
 #include <autoconf.h>
-
-#define verbose 0
-#include <sys/debug.h>
 
 #define ALIGN(x, base) ((x) & ~((base)-1))
 #define ALIGN_TOP(x, base) (ALIGN((x) + ((base)-1), base))

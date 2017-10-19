@@ -19,6 +19,8 @@ struct vspace {
 
 enum process_status {
 	PROCESS_ALIVE = 0,
+	PROCESS_TO_DIE,
+	PROCESS_DYING,
 	PROCESS_ZOMBIE,
 };
 
@@ -36,7 +38,7 @@ struct process {
 	timestamp_t start_time;
 
 	enum process_status status;
-	coro current_coroutine;
+	coro coroutine;
 	struct semaphore* event_finished_syscall;
 	struct semaphore* event_exited;
 };
@@ -46,5 +48,6 @@ extern struct process* process_table[MAX_PROCESSES];
 struct process* get_process(int32_t pid);
 struct process* process_create(char* app_name);
 void process_kill(struct process* process, uint32_t status);
-
+void process_signal_kill(struct process* process);
+void process_init(void);
 extern struct process sos_process;

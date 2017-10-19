@@ -3,6 +3,7 @@
 #include <cpio/cpio.h>
 #include <devices/devices.h>
 #include <elf/elf.h>
+#include <garbage.h>
 #include <libcoro.h>
 #include <mapping.h>
 #include <process.h>
@@ -23,6 +24,7 @@
 
 #define ELF_HEADER_SIZE 4096
 struct semaphore* any_pid_exit_signal;
+struct lock* process_lock;
 
 void process_zombie_reap(struct process* process);
 /* This is the index where a clients syscall enpoint will
@@ -59,8 +61,13 @@ struct process* get_process(int32_t pid) {
 	}
 	return process_table[pid];
 }
+void process_init(void) {
+	process_lock = lock_create("process lock");
+	conditional_panic(process_lock == NULL, "Failed to create process lock");
+}
 
 struct process* process_create(char* app_name) {
+	lock(process_lock);
 	int err;
 	dprintf(0, "*** CREATING PROCESS (%s) ***\n", app_name);
 	// seL4_Word stack_addr;
@@ -76,18 +83,19 @@ struct process* process_create(char* app_name) {
 	}
 	trace(5);
 	memset(process, 0, sizeof(struct process));
-
 	process->pid = get_new_pid();
 	if (process->pid == 0) {
-		goto err1;
+		goto err1_3;
 	}
-	trace(5);
 	struct process* existing_process;
 	if ((existing_process = process_table[process->pid]) != NULL) {
 		trace(5);
 		kassert(existing_process->status == PROCESS_ZOMBIE);
 		process_zombie_reap(existing_process);
 	}
+	process_table[process->pid] = process;
+
+	trace(5);
 	trace(5);
 	process->name = strdup(app_name);
 
@@ -186,11 +194,18 @@ struct process* process_create(char* app_name) {
 		sos_map_page(process->vspace.pagetable, ipc_region->vaddr,
 					 PAGE_WRITABLE | PAGE_READABLE | PAGE_PINNED, 0);
 
+	region_node* heap_region = create_heap(process->vspace.regions);
+	if (heap_region == NULL) {
+		goto err13;
+	}
+	process->vspace.regions->heap = heap_region;
+	process->vspace.sbrk = heap_region->vaddr;
+
 	if (ipc_pte == NULL) {
 		trace(5);
 		goto err13;
 	}
-	unlock(ipc_pte->lock);
+
 	/* Configure the TCB */
 	err = seL4_TCB_Configure(process->tcb_cap, user_ep_cap, 0,
 							 process->croot->root_cnode, seL4_NilData,
@@ -211,6 +226,11 @@ struct process* process_create(char* app_name) {
 	serial_open(&process->fds.fds[1], O_WRONLY);
 	serial_open(&process->fds.fds[2], O_WRONLY);
 
+	process->coroutine = coroutine_create(process);
+	if (process->coroutine == NULL) {
+		goto err16;
+	}
+
 	trace(5);
 	/* Register the process in the process table */
 	process->status = PROCESS_ALIVE;
@@ -228,9 +248,11 @@ struct process* process_create(char* app_name) {
 	process->start_time = time_stamp();
 	seL4_TCB_WriteRegisters(process->tcb_cap, 1, 0, 2, &context);
 	trace(5);
+	unlock(process_lock);
 	return process;
 
 /* Woo, error handling. Do everything above, but freeing in reverse */
+err16:
 err15:
 err14:
 err13:
@@ -266,11 +288,11 @@ err1_3:
 	trace(5);
 	free(process->name);
 	process_table[process->pid] = NULL;
-err1:
 	trace(5);
 	free(process);
 err0:
 	trace(5);
+	unlock(process_lock);
 	return NULL;
 }
 
@@ -295,26 +317,30 @@ void process_coredump(struct process* process) {
 	}
 	printf("Process dumped\n");
 }
+void process_signal_kill(struct process* process) {
+	if (process->status != PROCESS_ALIVE) {
+		return;
+	}
+	process->status = PROCESS_TO_DIE;
+	if (coro_idle(process->coroutine)) {
+		dprintf(3, "Process <%s:%u> is idle, so killing now\n", process->name,
+				process->pid);
+		process_kill(process, 0);
+	}
+}
 void process_kill(struct process* process, uint32_t status) {
 	kassert(process != NULL);
+	/* We probably don't want to try killing sos... */
+	kassert(process != &sos_process);
 	trace(1);
-	if (process->status == PROCESS_ZOMBIE) {
+	if (process->status != PROCESS_TO_DIE) {
 		return;
 	}
-
-	/* wait until a syscall is finished (if needed), unless it is called
-	 * exit */
-	if (process->current_coroutine != NULL &&
-		process->current_coroutine != current_coro()) {
-		wait(process->event_finished_syscall);
-	}
-
-	/* While we waited, something else might have killed us */
-	if (process->status == PROCESS_ZOMBIE) {
-		return;
-	}
-	process->status = PROCESS_ZOMBIE;
+	process->status = PROCESS_DYING;
+	lock(process_lock);
 	trace(1);
+	/* Delete the TCB cap first to make sure that it doesn't try
+	 * to make any syscalls while in the middle of being killed */
 	cspace_delete_cap(cur_cspace, process->tcb_cap);
 	trace(1);
 	pd_free(process->vspace.pagetable);
@@ -333,17 +359,28 @@ void process_kill(struct process* process, uint32_t status) {
 	process->vspace.pagetable = NULL;
 	process->croot = 0;
 	process->vspace.regions = NULL;
+
+	/* The garbage collector will clean up this coro */
+	kassert(process->coroutine != NULL);
+	add_garbage_coroutine(process->coroutine);
+	process->coroutine = NULL;
 	trace(1);
+
 	// Signal that *this* process has ended
 	signal(process->event_exited, (void*)process->pid);
 	trace(1);
 	// Signal that *a* process has ended
 	signal(any_pid_exit_signal, (void*)process->pid);
 	trace(1);
+	process->status = PROCESS_ZOMBIE;
+	dprintf(4, "***\n*** <%s:%u> is DEAD ***\n***\n", process->name,
+			process->pid);
+	unlock(process_lock);
 }
 void process_zombie_reap(struct process* process) {
 	kassert(process != NULL);
 	kassert(process->status == PROCESS_ZOMBIE);
+	kassert(process->coroutine == NULL);
 	semaphore_destroy(process->event_finished_syscall);
 	semaphore_destroy(process->event_exited);
 	process_table[process->pid] = NULL;

@@ -18,6 +18,9 @@
 #define VM_FAIL -2
 #define VM_OKAY 0
 
+/* The cap is managed outside the virtual memory subsystem */
+#define PAGE_SPECIAL (1 << 7)
+/* Don't cache memory mapped from this page */
 #define PAGE_NOCACHE (1 << 6)
 /* The flag that defines if the page has been recently accessed */
 #define PAGE_ZOMBIE (1 << 5)
@@ -41,7 +44,6 @@ struct page_table_entry {
 	struct page_directory* pd;
 	struct page_table_entry* next;
 	struct page_table_entry* prev;
-	struct lock* lock;
 #ifdef VM_HEAVY_VETTING
 	uint32_t debug_check;
 #endif
@@ -76,7 +78,6 @@ struct page_table_entry* sos_map_page(struct page_directory* pd,
 
 void sos_handle_vmfault(struct process* process);
 
-int vm_swapout(struct page_table_entry* pte);
 bool vm_pageisloaded(struct page_table_entry* pte);
 int vm_swapin(struct page_table_entry* pte);
 int vm_swappage(void);
@@ -86,3 +87,4 @@ int32_t swapout_frame(const void* src);
 int32_t swap_init(void);
 int32_t swapin_frame(int32_t disk_page_offset, void* dst);
 void swapfree_frame(int32_t disk_page_offset);
+void pte_untrack(struct page_table_entry* pte);

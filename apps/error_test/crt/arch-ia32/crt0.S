@@ -1,16 +1,24 @@
-#@ LICENSE(NICTA)
+# @LICENSE(NICTA)
 
-	.global _start.extern seL4_InitBootInfo
-	.extern exit
+    .global _start
+    .extern seL4_InitBootInfo
+    .extern exit
 
-	.text
+    .text
 
-	_start : leal _stack_top,
-	% esp pushl % ebx call seL4_InitBootInfo addl $4,
-	% esp call main pushl %
-		eax call exit 1 : jmp 1b
+_start:
+    leal    _stack_top, %esp
+    pushl   %ebx
+    call    seL4_InitBootInfo
+    addl    $4, %esp
+    call    main
+    pushl   %eax
+    call    exit
+1:  jmp     1b
 
-							  .bss
-							  .align 4
+    .bss
+    .align  4
 
-						  _stack_bottom :.space 1024 _stack_top:
+_stack_bottom:
+    .space  1024
+_stack_top:

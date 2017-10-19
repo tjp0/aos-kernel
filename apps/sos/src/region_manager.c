@@ -5,13 +5,13 @@
  * * * * * * * * * * * * * */
 
 #include "region_manager.h"
+#include <autoconf.h>
 #include <sel4/sel4.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <vm.h>
 #include <vmem_layout.h>
-
-#define verbose 5
+#define verbose 0
 #include <sys/debug.h>
 #include <sys/kassert.h>
 
@@ -32,8 +32,9 @@ static int create_initial_regions(region_list* reg_list) {
 		return REGION_FAIL;
 	}
 
+	const uint32_t stacksize = CONFIG_SOS_PROCESS_MAX_STACK;
 	region_node* stack =
-		add_region(reg_list, PROCESS_TOP - PAGE_SIZE_4K, PAGE_SIZE_4K,
+		add_region(reg_list, PROCESS_TOP - stacksize, stacksize,
 				   PAGE_READABLE | PAGE_WRITABLE, 0, 0, 0);
 	if (stack == NULL) {
 		return REGION_FAIL;
@@ -160,6 +161,9 @@ region_node* add_region(region_list* reg_list, vaddr_t addr, unsigned int size,
 		// kassert(prev->prev->next == prev);
 	}
 
+	if (verbose > 3) {
+		regions_print(reg_list);
+	}
 	return new_node;
 }
 
@@ -256,7 +260,6 @@ region_node* create_mmap(region_list* region_list, uint32_t size,
 
 void regions_print(region_list* regions) {
 	region_node* cur = regions->start;
-	// printf("----------------------\n");
 	while (cur) {
 		printf("0x%08x -> 0x%08x: perm: %08u, | %-20s|", cur->vaddr,
 			   cur->vaddr + cur->size, cur->perm, cur->name);
@@ -275,28 +278,23 @@ void regions_print(region_list* regions) {
 		if (cur->perm & PAGE_NOCACHE) {
 			printf(" NOCACHE");
 		}
+		if (cur->perm & PAGE_SPECIAL) {
+			printf(" SPECIAL");
+		}
 		printf("\n");
-
-		// if (cur->prev && cur->prev->vaddr) {
-		// 	printf("0x%08x -> 0x%08x: perm: %08u, | %s :0x%08x\n", cur->vaddr,
-		// 		   cur->vaddr + cur->size, cur->perm, cur->name,
-		// 		   cur->prev->vaddr);
-		// } else {
-		// 	printf("0x%08x -> 0x%08x: perm: %08u, | %s ;0x%08x\n", cur->vaddr,
-		// 		   cur->vaddr + cur->size, cur->perm, cur->name, 0);
-		// }
 		cur = cur->next;
 	}
-	// printf("########################\n");
 }
 
 int region_remove(region_list* regions, struct process* process,
 				  vaddr_t vaddr) {
 	region_node* node = findspot(regions->start, vaddr);
-	if (!node) {
+	if (node == NULL) {
 		return VM_FAIL;
 	}
-	for (vaddr_t vaddr = vaddr; vaddr + vaddr < node->size;
+	kassert(node->vaddr != 0);
+	dprintf(3, "Removing region: 0x%08x, %s\n", node->vaddr, node->name);
+	for (vaddr_t vaddr = node->vaddr; node->vaddr + vaddr < node->size;
 		 vaddr += PAGE_SIZE_4K) {
 		struct page_table_entry* pte =
 			pd_getpage(process->vspace.pagetable, vaddr);
@@ -307,5 +305,9 @@ int region_remove(region_list* regions, struct process* process,
 	node->prev->next = node->next;
 	node->next->prev = node->prev;
 	free(node);
+
+	if (verbose > 3) {
+		regions_print(regions);
+	}
 	return 0;
 }

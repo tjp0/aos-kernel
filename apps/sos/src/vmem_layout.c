@@ -54,8 +54,9 @@ void initialize_sos_memory(seL4_ARM_PageDirectory pd,
 	node->name = "UNUSED";
 	kassert(node);
 
-	node = create_mmap(sos_process.vspace.regions, memory_range,
-					   PAGE_READABLE | PAGE_WRITABLE | PAGE_PINNED);
+	node =
+		create_mmap(sos_process.vspace.regions, memory_range,
+					PAGE_READABLE | PAGE_WRITABLE | PAGE_PINNED | PAGE_SPECIAL);
 	kassert(node);
 	node->name = "Mapped frames";
 
@@ -67,8 +68,9 @@ void initialize_sos_memory(seL4_ARM_PageDirectory pd,
 	ft_numframes = ((memory_range + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K);
 	ft_size = ft_numframes * sizeof(struct frame);
 
-	node = create_mmap(sos_process.vspace.regions, frame_table_size,
-					   PAGE_READABLE | PAGE_WRITABLE | PAGE_PINNED);
+	node =
+		create_mmap(sos_process.vspace.regions, frame_table_size,
+					PAGE_READABLE | PAGE_WRITABLE | PAGE_PINNED | PAGE_SPECIAL);
 	kassert(node);
 	node->name = "Frame table";
 

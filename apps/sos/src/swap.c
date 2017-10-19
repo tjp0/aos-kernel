@@ -33,7 +33,7 @@ struct lock* swap_lock;
 
 int32_t swap_init() {
 	trace(4);
-	swap_lock = lock_create();
+	swap_lock = lock_create("swap_disk_lock");
 	nfs_dev_open(&swapfile, "pagefile", FM_WRITE | FM_READ);
 	return 0;
 }

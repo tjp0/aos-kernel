@@ -4,13 +4,9 @@
 #include <sos.h>
 #include <sos_coroutine.h>
 #include <vm.h>
-#define verbose 0
+#define verbose 1
 #include <sys/debug.h>
 #include <sys/kassert.h>
-
-// extern struct semaphore* any_pid_exit_signal;
-
-#define ELF_HEADER_SIZE 4096
 
 uint32_t syscall_process_create(struct process* process, vaddr_t path) {
 	trace(5);
@@ -30,7 +26,7 @@ uint32_t syscall_process_create(struct process* process, vaddr_t path) {
 
 uint32_t syscall_process_exit(struct process* process, uint32_t status) {
 	trace(5);
-	process_kill(process, status);
+	process_signal_kill(process);
 	return 0;
 }
 
@@ -95,9 +91,8 @@ uint32_t syscall_process_kill(struct process* process, uint32_t pid) {
 	if (!process_to_kill) {
 		return -1;
 	}
-	uint32_t status = -1;
 	dprintf(0, "Killing process %d \n", process_to_kill);
-	process_kill(process_to_kill, status);
+	process_signal_kill(process_to_kill);
 	return 0;
 }
 
