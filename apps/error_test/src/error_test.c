@@ -119,21 +119,19 @@ void file_errors() {
 	/* RDONLY tests */
 	fd = sos_sys_open("a_new_file.txt", O_RDONLY);
 	assert(fd != -1);
-	assert(sos_sys_read(fd, NULL, 0) == 0);
+	assert(sos_sys_read(fd, NULL, 0) <= -1);
 	assert(sos_sys_read(fd, NULL, 3242) <= -1);
 	assert(sos_sys_read(fd, (char *)1000, 1) <= -1);
 	assert(sos_sys_read(fd, (char *)~0, 1000) <= -1);
 	// printf("buf: %p\n", (void *) buff);
 	// printf("%d\n", sos_sys_read(fd, buff, ~0));
 	// assert(0);
-	// assert(sos_sys_read(fd, buff, ~0) <= -1);   /* TODO this fails due to not
-	// finding the region */
+    assert(sos_sys_read(fd, buff, ~0) <= -1);   /* this passes now, regions fixed */
 	assert(sos_sys_write(fd, buff, 1) <= -1);
 	/* Not really an error but rather a corner case. */
 	assert(sos_sys_read(fd, buff, 0) == 0);
-	// printf("%d\n", sos_sys_read(fd, "a_new_file.txt", 1));
-	// assert(sos_sys_read(fd, "a_new_file.txt", 1) <= -1);        /* ptr to
-	// "a_new_file.txt" should fail when reading to a O_WRONLY section */
+	assert(sos_sys_read(fd, "a_new_file.txt", 1) <= -1);        /* ptr to */
+	/* "a_new_file.txt" should fail when reading to a O_WRONLY section */
 	/* TODO this also fails when attempting to get it's region */
 	assert(sos_sys_close(fd) == 0);
 	assert(sos_sys_read(fd, buff, 1) <= -1);
@@ -153,12 +151,11 @@ void file_errors() {
 	assert(sos_getdirent(-1, name_buff, MAX_PATH_LENGTH) == -1);
 	assert(sos_getdirent(-34214, name_buff, MAX_PATH_LENGTH) == -1);
 	// assert(sos_getdirent(342423, name_buff, MAX_PATH_LENGTH) == -1);
-	// assert(sos_getdirent(0, name_buff, ~0) == -1);   /* TODO regions needs
-	// fixing */
-	// assert(sos_getdirent(0, "a_new_file.txt", 100) == -1);  /* TODO regions
+	assert(sos_getdirent(0, name_buff, ~0) == -1);
+	assert(sos_getdirent(0, "a_new_file.txt", 100) == -1);  /* TODO regions
 	// need fixing */
 	assert(sos_getdirent(0, NULL, 100) == -1);
-	// assert(sos_getdirent(0, (void *)~0, 1000) == -1);       /* TODO regions
+	assert(sos_getdirent(0, (void *)~0, 1000) == -1);       /* TODO regions
 	// */
 	assert(sos_getdirent(0, name_buff, 0) == -1);
 
@@ -172,8 +169,7 @@ void file_errors() {
 	assert(sos_stat("a_new_file.txt", NULL) == -1);
 	assert(sos_stat("a_new_file.txt", (void *)~0) == -1);
 	assert(sos_stat("a_new_file.txt", (void *)1000) == -1);
-	// assert(sos_stat("a_new_file.txt", (void *)"a_new_file.txt") == -1);
-	// /* TODO regions */
+	assert(sos_stat("a_new_file.txt", (void *)"a_new_file.txt") == -1);
 
 	printf("[*] stat() tests pass\n");
 
@@ -356,9 +352,9 @@ int main(void) {
 	// printf("Timer error tests passed.\n");
 
 	/* file tests */
-	// 	printf("Running file error tests.\n");
-	// 	file_errors();
-	// 	printf("File error tests passed.\n");
+    printf("Running file error tests.\n");
+    file_errors();
+    printf("File error tests passed.\n");
 
 	/* memory tests */
 	// 	printf("Running memory error tests.\n");

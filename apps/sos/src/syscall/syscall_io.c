@@ -5,6 +5,7 @@
 #include <process.h>
 #include <sos.h>
 #include <utils/math.h>
+#include <vm.h>
 
 #define verbose 6
 #include <sys/debug.h>
@@ -52,33 +53,45 @@ int syscall_read(struct process* process, int fdnum, vaddr_t ptr, int length) {
 		return -1;
 	}
 
+
+    region_list *rl = process->vspace.regions;
+    if (!rl) { 
+        return -1; 
+    }
+    region_node *r = find_region(rl, ptr);
+    if (!r) { 
+        return -1; 
+    }
+
+    /* check ptr is in a writable region */
+    if (!(r->perm & PAGE_WRITABLE)) { 
+        return -1; 
+    }
+    //if (flags & COPY_VSPACE2SOS) {
+    //    dprintf(1, "** vspace2sos: checking readable: %p\n", (void *) r->perm);
+    //    if (!(r->perm & PAGE_READABLE)) { return -1; }
+    //    dprintf(1, "(readable)\n");
+    //} else {
+    //    dprintf(1, "** !vspace2sos: checking writable: %p\n", (void *) r->perm);
+    //    if (!(r->perm & PAGE_WRITABLE)) { return -1; }
+    //    dprintf(1, "(writable)\n");
+    //}
+
+    regions_print(rl);
+    dprintf(1, "rl: %p, r: %p\n", (void*)rl, (void*)r);
+    dprintf(1, "ptr: %p\n", (void*)ptr);
+
 	/* check ptr and ptr+length are in the same region */
-	/* this if statement might be able to be removed once mmap is
-	 * merged */
-	if (process && process->vspace.regions) {
-		dprintf(1, "hai\n");
-		region_list* rl = process->vspace.regions;
-		region_node* r = find_region(rl, ptr);
-		regions_print(rl);
-		dprintf(1, "rl: %p, r: %p\n", (void*)rl, (void*)r);
-		dprintf(1, "ptr: %p\n", (void*)ptr);
-		// if (!r) { return -1; } /* uncomment when mmap is merged (dbl check
-		// with tjp) */
-		if (r) {
-			// return -1;
-			dprintf(1, "here\n");
-			uint32_t r_end = r->vaddr + r->size;
-			uint32_t r_size_remaining = r_end - ptr;
-			dprintf(1, "r->vaddr: %p, + size: %p = %p\n", (void*)r->vaddr,
-					(void*)r->size, (void*)r_end);
-			dprintf(1, "ptr: %p, remaining: %p\n", (void*)ptr,
-					(void*)r_size_remaining);
-			if (length > r_size_remaining) {
-				dprintf(1, "returning -1\n");
-				return -1;
-			}
-		}
-	}
+    uint32_t r_end = r->vaddr + r->size;
+    uint32_t r_size_remaining = r_end - ptr;
+    dprintf(1, "r->vaddr: %p, + size: %p = %p\n", (void*)r->vaddr,
+            (void*)r->size, (void*)r_end);
+    dprintf(1, "ptr: %p, remaining: %p\n", (void*)ptr,
+            (void*)r_size_remaining);
+    if (length > r_size_remaining) {
+        dprintf(1, "returning -1\n");
+        return -1;
+    }
 
 	return fd->dev_read(fd, &process->vspace, ptr, length);
 }

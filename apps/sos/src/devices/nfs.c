@@ -8,7 +8,7 @@
 #include <nfs/nfs.h>
 #include <sos.h>
 #include <utils/math.h>
-#define verbose 0
+#define verbose 2
 #include <sys/debug.h>
 #include <sys/kassert.h>
 
